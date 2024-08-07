@@ -1,4 +1,111 @@
 services:
+  
+  # main service:
+  #  - builds the docker image (build .)
+  #  - create the bind mount folder in case it is not present (create_host_path: true)
+  #  - opens the container without running any specific command (start from /bin/bash as for Dockerfile)
+
   main:
-    image: python-experiments
+    image: kbhgr
     build: .
+    volumes:
+      - type: bind
+        source: ${RESULTS:-results}
+        target: /project/results
+        bind:
+          create_host_path: true
+
+  # all the other services:
+  #   - depend on the main and use the same docker image
+  #   - are linked to the same bind mount folder but without the need to create it
+  #   - run a specific command corresponding to a top-level script (set the folder as 'results' as for Dockerfile)
+
+  calibration:
+    image: kbhgr
+    depends_on: [ main ]
+    command: python calibration.py --folder results
+    volumes:
+      - type: bind
+        source: ${RESULTS:-results}
+        target: /project/results
+
+  causality:
+    image: kbhgr
+    depends_on: [ main ]
+    command: python causality.py --folder results
+    volumes:
+      - type: bind
+        source: ${RESULTS:-results}
+        target: /project/results
+
+  correlations:
+    image: kbhgr
+    depends_on: [ main ]
+    command: python correlations.py --folder results
+    volumes:
+      - type: bind
+        source: ${RESULTS:-results}
+        target: /project/results
+
+  example:
+    image: kbhgr
+    depends_on: [ main ]
+    command: python example.py --folder results
+    volumes:
+      - type: bind
+        source: ${RESULTS:-results}
+        target: /project/results
+
+  history:
+    image: kbhgr
+    depends_on: [ main ]
+    command: python history.py --folder results
+    volumes:
+      - type: bind
+        source: ${RESULTS:-results}
+        target: /project/results
+
+  importance:
+    image: kbhgr
+    depends_on: [ main ]
+    command: python importance.py --folder results
+    volumes:
+      - type: bind
+        source: ${RESULTS:-results}
+        target: /project/results
+
+  kernels:
+    image: kbhgr
+    depends_on: [ main ]
+    command: python kernels.py --folder results
+    volumes:
+      - type: bind
+        source: ${RESULTS:-results}
+        target: /project/results
+
+  monotonicity:
+    image: kbhgr
+    depends_on: [ main ]
+    command: python monotonicity.py --folder results
+    volumes:
+      - type: bind
+        source: ${RESULTS:-results}
+        target: /project/results
+
+  outputs:
+    image: kbhgr
+    depends_on: [ main ]
+    command: python outputs.py --folder results
+    volumes:
+      - type: bind
+        source: ${RESULTS:-results}
+        target: /project/results
+
+  overfitting:
+    image: kbhgr
+    depends_on: [ main ]
+    command: python overfitting.py --folder results
+    volumes:
+      - type: bind
+        source: ${RESULTS:-results}
+        target: /project/results

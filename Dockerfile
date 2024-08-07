@@ -13,5 +13,8 @@ RUN pip install -r requirements.txt
 # copy the project code the workind directory of the container
 COPY . .
 
+# create the results folder for mount bindings
+RUN mkdir -p results
+
 # open a bash
 CMD ["/bin/bash"]

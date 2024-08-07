@@ -8,3 +8,5 @@ venv
 temp
 dist
 build
+wandb
+results
