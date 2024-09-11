@@ -55,10 +55,10 @@ class AnalysisExperiment(Experiment):
         super().__init__(folder=folder)
 
     @staticmethod
-    def importance(folder: str,
-                   datasets: Iterable[Dataset],
+    def importance(datasets: Iterable[Dataset],
                    on: Literal['protected', 'target', 'both'] = 'both',
                    top: int = 10,
+                   folder: str = 'results',
                    extensions: Iterable[str] = ('png',),
                    plot: bool = False):
         # build the targets parameter
@@ -100,8 +100,8 @@ class AnalysisExperiment(Experiment):
                     fig.show()
 
     @staticmethod
-    def causality(folder: str,
-                  datasets: Iterable[Dataset],
+    def causality(datasets: Iterable[Dataset],
+                  folder: str = 'results',
                   extensions: Iterable[str] = ('png',),
                   plot: bool = False):
         sns.set(context='poster', style='whitegrid', font_scale=1.5)
@@ -194,10 +194,10 @@ class AnalysisExperiment(Experiment):
                 fig.show()
 
     @staticmethod
-    def example(folder: str,
-                dataset: Dataset,
+    def example(dataset: Dataset,
                 degree_a: int = 2,
                 degree_b: int = 2,
+                folder: str = 'results',
                 extensions: Iterable[str] = ('png',),
                 plot: bool = False):
         # compute correlations and kernels
@@ -246,7 +246,7 @@ class AnalysisExperiment(Experiment):
             fig.show()
 
     @staticmethod
-    def overfitting(folder: str, extensions: Iterable[str] = ('png',), plot: bool = False):
+    def overfitting(folder: str = 'results', extensions: Iterable[str] = ('png',), plot: bool = False):
         # sample data
         rng = np.random.default_rng(0)
         x = np.arange(15)
@@ -262,7 +262,8 @@ class AnalysisExperiment(Experiment):
         ax.set_ylabel('b', rotation=0, labelpad=20)
         ax.set_xticks(x, labels=[''] * len(x))
         ax.set_yticks([0.0, 0.5, 1.0], labels=['', '', ''])
-        ax.set_ylim([-0.05, 1.05])
+        ax.set_xlim([-0.15, 14.15])
+        ax.set_ylim([-0.03, 1.03])
         # store and plot if necessary
         for extension in extensions:
             os.makedirs(folder, exist_ok=True)

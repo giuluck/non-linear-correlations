@@ -75,12 +75,12 @@ class CorrelationExperiment(Experiment):
         super().__init__(folder=folder)
 
     @staticmethod
-    def monotonicity(folder: str,
-                     datasets: Iterable[Dataset],
+    def monotonicity(datasets: Iterable[Dataset],
                      degrees_a: Iterable[int] = (1, 2, 3, 4, 5, 6, 7),
                      degrees_b: Iterable[int] = (1, 2, 3, 4, 5, 6, 7),
                      vmin: Optional[float] = None,
                      vmax: Optional[float] = None,
+                     folder: str = 'results',
                      extensions: Iterable[str] = ('png',),
                      plot: bool = False):
         # run experiments
@@ -128,8 +128,7 @@ class CorrelationExperiment(Experiment):
             plt.close(fig)
 
     @staticmethod
-    def correlations(folder: str,
-                     datasets: Iterable[str],
+    def correlations(datasets: Iterable[str],
                      metrics: Dict[str, HGR],
                      noises: Iterable[float] = (0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0),
                      noise_seeds: Iterable[int] = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
@@ -137,6 +136,7 @@ class CorrelationExperiment(Experiment):
                      test: bool = False,
                      columns: int = 2,
                      save_time: int = 60,
+                     folder: str = 'results',
                      extensions: Iterable[str] = ('png',),
                      plot: bool = False):
         datasets, noise_seeds = list(datasets), list(noise_seeds)
@@ -258,14 +258,14 @@ class CorrelationExperiment(Experiment):
         plt.close(fig)
 
     @staticmethod
-    def kernels(folder: str,
-                datasets: Iterable[str],
+    def kernels(datasets: Iterable[str],
                 metrics: Dict[str, KernelsHGR],
                 noises: Iterable[float],
                 tests: int = 30,
+                save_time: int = 60,
+                folder: str = 'results',
                 extensions: Iterable[str] = ('png',),
-                plot: bool = False,
-                save_time: int = 60):
+                plot: bool = False):
         # run experiments
         metrics = {'ORACLE': Oracle(), **metrics}
         datasets = {(ds, ns): Deterministic(name=ds, noise=ns, seed=0) for ds in datasets for ns in noises}

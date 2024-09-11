@@ -199,13 +199,13 @@ class LearningExperiment(Experiment):
         super().__init__(folder=folder)
 
     @staticmethod
-    def calibration(folder: str,
-                    datasets: Iterable[SurrogateDataset],
+    def calibration(datasets: Iterable[SurrogateDataset],
                     batches: Iterable[int] = (512, 4096, -1),
                     units: Iterable[Iterable[int]] = ((32,), (256,), (32,) * 2, (256,) * 2, (32,) * 3, (256,) * 3),
                     steps: int = 1000,
                     folds: int = 5,
                     wandb_project: Optional[str] = None,
+                    folder: str = 'results',
                     extensions: Iterable[str] = ('png',),
                     plot: bool = False):
         batches = {batch: batch for batch in batches}
@@ -288,8 +288,7 @@ class LearningExperiment(Experiment):
             plt.close(fig)
 
     @staticmethod
-    def history(folder: str,
-                datasets: Iterable[SurrogateDataset],
+    def history(datasets: Iterable[SurrogateDataset],
                 metrics: Dict[str, HGR],
                 steps: int = 500,
                 folds: int = 5,
@@ -298,6 +297,7 @@ class LearningExperiment(Experiment):
                 alpha: Optional[float] = None,
                 threshold: Optional[float] = None,
                 wandb_project: Optional[str] = None,
+                folder: str = 'results',
                 extensions: Iterable[str] = ('png',),
                 plot: bool = False):
         metrics = {'//': None, **metrics}
@@ -405,8 +405,7 @@ class LearningExperiment(Experiment):
             plt.close(fig)
 
     @staticmethod
-    def outputs(folder: str,
-                datasets: Iterable[SurrogateDataset],
+    def outputs(datasets: Iterable[SurrogateDataset],
                 metrics: Dict[str, HGR],
                 steps: int = 500,
                 folds: int = 5,
@@ -415,6 +414,7 @@ class LearningExperiment(Experiment):
                 alpha: Optional[float] = None,
                 threshold: Optional[float] = None,
                 wandb_project: Optional[str] = None,
+                folder: str = 'results',
                 extensions: Iterable[str] = ('csv',)):
         metrics = {'//': None, **metrics}
         datasets = {dataset.name: dataset for dataset in datasets}

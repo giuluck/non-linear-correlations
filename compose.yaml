@@ -10,7 +10,7 @@ services:
     build: .
     volumes:
       - type: bind
-        source: ${RESULTS:-results}
+        source: ${FOLDER:-results}
         target: /project/results
         bind:
           create_host_path: true
@@ -26,7 +26,7 @@ services:
     command: python calibration.py --folder results
     volumes:
       - type: bind
-        source: ${RESULTS:-results}
+        source: ${FOLDER:-results}
         target: /project/results
 
   causality:
@@ -35,7 +35,7 @@ services:
     command: python causality.py --folder results
     volumes:
       - type: bind
-        source: ${RESULTS:-results}
+        source: ${FOLDER:-results}
         target: /project/results
 
   correlations:
@@ -44,7 +44,7 @@ services:
     command: python correlations.py --folder results
     volumes:
       - type: bind
-        source: ${RESULTS:-results}
+        source: ${FOLDER:-results}
         target: /project/results
 
   example:
@@ -53,7 +53,7 @@ services:
     command: python example.py --folder results
     volumes:
       - type: bind
-        source: ${RESULTS:-results}
+        source: ${FOLDER:-results}
         target: /project/results
 
   history:
@@ -62,7 +62,7 @@ services:
     command: python history.py --folder results
     volumes:
       - type: bind
-        source: ${RESULTS:-results}
+        source: ${FOLDER:-results}
         target: /project/results
 
   importance:
@@ -71,7 +71,7 @@ services:
     command: python importance.py --folder results
     volumes:
       - type: bind
-        source: ${RESULTS:-results}
+        source: ${FOLDER:-results}
         target: /project/results
 
   kernels:
@@ -80,7 +80,7 @@ services:
     command: python kernels.py --folder results
     volumes:
       - type: bind
-        source: ${RESULTS:-results}
+        source: ${FOLDER:-results}
         target: /project/results
 
   monotonicity:
@@ -89,7 +89,7 @@ services:
     command: python monotonicity.py --folder results
     volumes:
       - type: bind
-        source: ${RESULTS:-results}
+        source: ${FOLDER:-results}
         target: /project/results
 
   outputs:
@@ -98,7 +98,7 @@ services:
     command: python outputs.py --folder results
     volumes:
       - type: bind
-        source: ${RESULTS:-results}
+        source: ${FOLDER:-results}
         target: /project/results
 
   overfitting:
@@ -107,5 +107,5 @@ services:
     command: python overfitting.py --folder results
     volumes:
       - type: bind
-        source: ${RESULTS:-results}
+        source: ${FOLDER:-results}
         target: /project/results
