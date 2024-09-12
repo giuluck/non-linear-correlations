@@ -53,7 +53,7 @@ parser.add_argument(
     type=str,
     nargs='+',
     choices=list(Deterministic.FUNCTIONS.keys()),
-    default=['circle', 'x_square', 'y_square', 'sign', 'sin'],
+    default=list(Deterministic.FUNCTIONS.keys()),
     help='the datasets on which to run the experiment'
 )
 parser.add_argument(
@@ -97,7 +97,7 @@ parser.add_argument(
     '-c',
     '--columns',
     type=int,
-    default=2,
+    default=3,
     help='the number of columns in the final plot'
 )
 parser.add_argument(

@@ -47,6 +47,15 @@ services:
         source: ${FOLDER:-results}
         target: /project/results
 
+  correlations_test:
+    image: kbhgr
+    depends_on: [ main ]
+    command: python correlations.py --test --folder results
+    volumes:
+      - type: bind
+        source: ${FOLDER:-results}
+        target: /project/results
+
   example:
     image: kbhgr
     depends_on: [ main ]

@@ -12,7 +12,8 @@ from tqdm import tqdm
 
 from experiments.experiment import Experiment
 from items.datasets import Dataset, Deterministic
-from items.hgr import DoubleKernelHGR, HGR, Oracle, KernelsHGR
+from items.hgr import DoubleKernelHGR, HGR, Oracle, KernelsHGR, AdversarialHGR, RandomizedDependenceCoefficient, \
+    SingleKernelHGR
 
 PALETTE: List[str] = [
     '#000000',
@@ -128,13 +129,135 @@ class CorrelationExperiment(Experiment):
             plt.close(fig)
 
     @staticmethod
+    def lstsq(datasets: Iterable[str],
+              noise: float = 0.5,
+              seeds: Iterable[int] = (0, 1, 2, 3, 4),
+              sizes: Iterable[int] = (11, 51, 101, 501, 1001, 5001, 10001, 50001, 100001, 500001, 1000001),
+              columns: int = 2,
+              folder: str = 'results',
+              extensions: Iterable[str] = ('png',),
+              plot: bool = False):
+        # run experiments
+        metrics = {'Optimization': SingleKernelHGR(lstsq=False), 'Least-Square': SingleKernelHGR(lstsq=True)}
+        experiments = CorrelationExperiment.execute(
+            folder=folder,
+            verbose=False,
+            save_time=None,
+            dataset={(dataset, seed, size): Deterministic(name=dataset, noise=noise, seed=seed, size=size)
+                     for dataset in datasets for seed in seeds for size in sizes},
+            metric=metrics,
+            seed=0
+        )
+        # build results
+        results = pd.DataFrame([
+            {'execution': exp.elapsed_time, 'Algorithm': metric, 'dataset': dataset, 'seed': seed, 'size': size}
+            for ((dataset, seed, size), metric), exp in tqdm(experiments.items(), desc='Storing Correlations')
+        ])
+        # plot results
+        sns.set(context='poster', style='whitegrid', font_scale=1.7)
+        rows = int(np.ceil(len(list(datasets)) / columns))
+        fig, axes = plt.subplots(rows, columns, figsize=(26, 9), tight_layout=True, sharex=True, sharey=True)
+        for dataset, ax in zip(datasets, axes):
+            sns.lineplot(
+                data=results[results['dataset'] == dataset],
+                x='size',
+                y='execution',
+                hue='Algorithm',
+                style='Algorithm',
+                estimator='mean',
+                errorbar='sd',
+                palette=PALETTE[1:len(metrics) + 1],
+                linewidth=3,
+                ax=ax
+            )
+            ax.legend(loc='upper right')
+            ax.set_xlabel(f'Size')
+            ax.set_ylabel('Execution Time (s)')
+            ax.set_xscale('log')
+            ax.set_yscale('log')
+            sub_ax = inset_axes(ax, width='22%', height='40%', loc='upper left')
+            Deterministic(name=dataset, noise=noise, seed=0).plot(ax=sub_ax, color='black', alpha=0.5, s=10)
+            sub_ax.set_xticks([])
+            sub_ax.set_yticks([])
+        # store and plot if necessary
+        for extension in extensions:
+            file = os.path.join(folder, f'lstsq.{extension}')
+            fig.savefig(file, bbox_inches='tight')
+        if plot:
+            fig.suptitle(f"Cost Analysis for Least-Square vs. Optimization in HGR-SK")
+            fig.show()
+
+    @staticmethod
+    def determinism(dataset: str,
+                    noises: Iterable[float] = (0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0),
+                    seeds: Iterable[int] = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
+                    folder: str = 'results',
+                    extensions: Iterable[str] = ('png',),
+                    plot: bool = False):
+        # run experiments
+        metrics = {'kb': DoubleKernelHGR(), 'nn': AdversarialHGR(), 'rdc': RandomizedDependenceCoefficient()}
+        experiments = CorrelationExperiment.execute(
+            folder=folder,
+            verbose=False,
+            dataset={noise: Deterministic(name=dataset, noise=noise, seed=0) for noise in noises},
+            metric=metrics,
+            seed=list(seeds)
+        )
+        # build results
+        results = pd.DataFrame([
+            {'correlation': exp['correlation'], 'noise': noise, 'metric': metric, 'seed': seed}
+            for (noise, metric, seed), exp in tqdm(experiments.items(), desc='Storing Correlations')
+        ])
+        # plot results
+        sns.set(context='poster', style='whitegrid', font_scale=2.2)
+        for metric in metrics:
+            fig = plt.figure(figsize=(12, 12), tight_layout=True)
+            group = results[results['metric'] == metric]
+            ax = fig.gca()
+            for seed in seeds:
+                sns.lineplot(
+                    data=group[group['seed'] == seed],
+                    x='noise',
+                    y='correlation',
+                    color='tab:blue',
+                    linestyle='--',
+                    linewidth=2,
+                    alpha=0.4,
+                    ax=ax
+                )
+            sns.lineplot(
+                data=group,
+                x='noise',
+                y='correlation',
+                estimator='mean',
+                errorbar='sd',
+                color='black',
+                linewidth=5,
+                ax=ax
+            )
+            ax.set_xlabel(f'Noise Level σ')
+            ax.set_ylabel('Correlation')
+            ax.set_ylim((-0.1, 1.1))
+            sub_ax = inset_axes(ax, width='30%', height='30%', loc='upper right')
+            Deterministic(name=dataset, noise=0.0, seed=0).plot(ax=sub_ax, linewidth=2, color='black')
+            sub_ax.set_xticks([])
+            sub_ax.set_yticks([])
+            for extension in extensions:
+                file = os.path.join(folder, f'determinism_{metric}.{extension}')
+                fig.savefig(file, bbox_inches='tight')
+            if plot:
+                fig.suptitle(f'Correlations using {metric.title()} Metric')
+                fig.show()
+            plt.close(fig)
+
+    @staticmethod
     def correlations(datasets: Iterable[str],
                      metrics: Dict[str, HGR],
                      noises: Iterable[float] = (0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0),
                      noise_seeds: Iterable[int] = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
                      algorithm_seeds: Iterable[int] = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
                      test: bool = False,
-                     columns: int = 2,
+                     columns: int = 3,
                      save_time: int = 60,
                      folder: str = 'results',
                      extensions: Iterable[str] = ('png',),
@@ -158,7 +281,14 @@ class CorrelationExperiment(Experiment):
         results = []
         for key, exp in tqdm(experiments.items(), desc='Storing Correlations'):
             dataset, noise, seed = key[0]
-            config = dict(dataset=dataset, noise=noise, metric=key[1], data_seed=seed, algorithm_seed=key[2])
+            config = dict(
+                dataset=dataset,
+                equation=exp.dataset.equation,
+                noise=noise,
+                metric=key[1],
+                data_seed=seed,
+                algorithm_seed=key[2]
+            )
             if not test:
                 results.append({'correlation': exp['correlation'], 'execution': exp.elapsed_time, **config})
             # build results for test data (use all the data seeds but the training one)
@@ -184,18 +314,20 @@ class CorrelationExperiment(Experiment):
                     exp.update(flush=True, test=test)
         # plot results
         results = pd.DataFrame(results)
+        metrics = results['metric'].unique()
         sns.set(context='poster', style='whitegrid', font_scale=1.7)
         # plot from 1 to D for test, while from 2 to D + 1 for train to leave the first subplot for the training times
-        plots = np.arange(len(datasets)) + (1 if test else 2)
+        plots = np.arange(len(datasets)) + 2
         rows = int(np.ceil(plots[-1] / columns))
-        fig = plt.figure(figsize=(9 * columns, 8.5 * rows), tight_layout=True)
+        fig = plt.figure(figsize=(9 * columns, (9 if test else 9.5) * rows), tight_layout=True)
         handles, labels = [], []
         names = datasets[::-1].copy()
         for i in plots:
             name = names.pop()
             ax = fig.add_subplot(rows, columns, i)
+            group = results[results['dataset'] == name]
             sns.lineplot(
-                data=results[results['dataset'] == name],
+                data=group,
                 x='noise',
                 y='correlation',
                 hue='metric',
@@ -208,6 +340,7 @@ class CorrelationExperiment(Experiment):
             )
             handles, labels = ax.get_legend_handles_labels()
             ax.get_legend().remove()
+            ax.set_title(group['equation'].iloc[0], pad=15)
             ax.set_xlabel(f'Noise Level σ')
             ax.set_ylabel('Correlation')
             ax.set_ylim((-0.1, 1.1))
@@ -217,8 +350,11 @@ class CorrelationExperiment(Experiment):
             sub_ax.set_xticks([])
             sub_ax.set_yticks([])
         # if train, plot times in the first subplot
-        if not test:
-            ax = fig.add_subplot(rows, columns, 1)
+        ax = fig.add_subplot(rows, columns, 1)
+        if test:
+            ax.legend(handles=handles, labels=labels, loc='center', fontsize='large')
+            ax.axis('off')
+        else:
             sns.barplot(
                 data=results,
                 x='metric',
@@ -231,6 +367,9 @@ class CorrelationExperiment(Experiment):
                 legend=False,
                 ax=ax
             )
+            ax.set_xlabel(None)
+            ax.set_ylabel('Execution Time (s)')
+            ax.set_yscale('log')
             for patch, handle in zip(ax.patches, handles):
                 patch.set_linestyle(handle.__dict__['_dash_pattern'])
                 color = patch.get_facecolor()
@@ -244,9 +383,6 @@ class CorrelationExperiment(Experiment):
             offset = transforms.ScaledTranslation(xt=-0.5, yt=0, scale_trans=fig.dpi_scale_trans)
             for label in ax.xaxis.get_majorticklabels():
                 label.set_transform(label.get_transform() + offset)
-            ax.set_xlabel(None)
-            ax.set_ylabel('Execution Time (s)')
-            ax.set_yscale('log')
         # store, print, and plot if necessary
         key = 'test' if test else 'train'
         for extension in extensions:

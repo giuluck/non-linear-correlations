@@ -16,6 +16,9 @@ class Deterministic(Dataset):
         name: str = field()
         """The name of the deterministic function."""
 
+        equation: str = field()
+        """The equation representing the deterministic function."""
+
         direction: int = field()
         """The direction of the deterministic function (1 for y = f(x), -1 for x = g(y), 0 for codependency)."""
 
@@ -26,18 +29,50 @@ class Deterministic(Dataset):
         """The deterministic copula transformation on y."""
 
     FUNCTIONS: Dict[str, Function] = {function.name: function for function in [
-        Function(name='linear', direction=1, f=lambda x: -x, g=lambda y: y),
-        Function(name='x_square', direction=1, f=lambda x: -x ** 2, g=lambda y: y),
-        Function(name='x_cubic', direction=1, f=lambda x: -x ** 3, g=lambda y: y),
-        Function(name='y_square', direction=-1, f=lambda x: -x, g=lambda y: y ** 2),
-        Function(name='y_cubic', direction=-1, f=lambda x: -x, g=lambda y: y ** 3),
-        Function(name='circle', direction=0, f=lambda x: -x ** 2, g=lambda y: y ** 2),
-        Function(name='sign', direction=1, f=lambda x: np.sign(x), g=lambda y: y),
-        Function(name='relu', direction=1, f=lambda x: np.maximum(x, 0), g=lambda y: y),
-        # apply the function to the input vector rescaled by a factor of pi
-        Function(name='sin', direction=1, f=lambda x: np.sin(np.pi * x), g=lambda y: y),
+        Function(name='linear', equation='$y = x$', direction=1, f=lambda x: x, g=lambda y: y),
+        Function(name='x_square', equation='$y = x^2$', direction=1, f=lambda x: x ** 2, g=lambda y: y),
+        Function(name='x_cubic', equation='$y = x^3$', direction=1, f=lambda x: x ** 3, g=lambda y: y),
+        Function(name='y_square', equation='$x = y^2$', direction=-1, f=lambda x: x, g=lambda y: y ** 2),
+        Function(name='y_cubic', equation='$x = y^3$', direction=-1, f=lambda x: x, g=lambda y: y ** 3),
+        Function(name='circle', equation='$x^2 + y^2 = 1$', direction=0, f=lambda x: -x ** 2, g=lambda y: y ** 2),
+        Function(
+            name='sign',
+            equation='$y = \operatorname{sign}(x)$',
+            direction=1,
+            f=lambda x: np.sign(x),
+            g=lambda y: y
+        ),
+        Function(
+            name='relu',
+            equation='$y = \operatorname{max}(0, x)$',
+            direction=1,
+            f=lambda x: np.maximum(x, 0),
+            g=lambda y: y
+        ),
         # apply the function to the input vector rescaled by a factor of 10
-        Function(name='tanh', direction=1, f=lambda x: np.tanh(10 * x), g=lambda y: y)
+        Function(
+            name='tanh',
+            equation='$y = \operatorname{tanh}(x)$',
+            direction=1,
+            f=lambda x: np.tanh(10 * x),
+            g=lambda y: y
+        ),
+        # apply the function to the input vector rescaled to [0, 2 * pi]
+        Function(
+            name='sin',
+            equation='$y = \operatorname{sin}(x)$',
+            direction=1,
+            f=lambda x: np.sin(np.pi * (x + 1)),
+            g=lambda y: y
+        ),
+        # apply the function to the input vector rescaled to [0, 2 * pi] and then squared
+        Function(
+            name='square_sin',
+            equation='$y = \operatorname{sin}(x^2)$',
+            direction=1,
+            f=lambda x: np.sin(np.square(np.pi * (x + 1))),
+            g=lambda y: y
+        )
     ]}
     """A dictionary of available functions paired with their names."""
 
@@ -92,6 +127,10 @@ class Deterministic(Dataset):
     @property
     def name(self) -> str:
         return self._function.name
+
+    @property
+    def equation(self) -> str:
+        return self._function.equation
 
     @property
     def direction(self) -> int:

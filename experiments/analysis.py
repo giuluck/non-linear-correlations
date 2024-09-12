@@ -109,7 +109,7 @@ class AnalysisExperiment(Experiment):
         for dataset in tqdm(datasets, desc='Fetching Experiments'):
             x = dataset.excluded(backend='numpy')
             y = dataset.target(backend='numpy')
-            # run experiment (use a dictionary to wrap features otherwise they will get unpacked as single items)
+            # run experiment (use a tuple to wrap features otherwise they will get unpacked as single items)
             metrics = {
                 'lin.': DoubleKernelHGR(degree_a=1, degree_b=1),
                 'dir.': DoubleKernelHGR(degree_b=1),

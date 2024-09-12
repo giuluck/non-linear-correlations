@@ -171,7 +171,8 @@ class KernelBasedHGR(KernelsHGR):
                        degree_a: int,
                        degree_b: int,
                        a0: Optional[np.ndarray],
-                       b0: Optional[np.ndarray]) -> Tuple[float, List[float], List[float]]:
+                       b0: Optional[np.ndarray],
+                       lstsq: bool) -> Tuple[float, List[float], List[float]]:
         """Computes HGR using numpy as backend and returns the correlation along with alpha and beta."""
         # build the kernel matrices
         f = KernelBasedHGR.kernel(a, degree=degree_a, use_torch=False)
@@ -182,11 +183,11 @@ class KernelBasedHGR(KernelsHGR):
         #  - if no degree is 1, use the optimization routine and compute the projected vectors from the coefficients
         if degree_a == 1 and degree_b == 1:
             alpha, beta = np.ones(1), np.ones(1)
-        elif degree_a == 1 and len(b) < MAX_SIZE:
+        elif degree_a == 1 and lstsq:
             std = a.std(ddof=0) + EPS
             alpha = np.ones(1) / std
             beta, _, _, _ = np.linalg.lstsq(g, f[:, 0] / std, rcond=None)
-        elif degree_b == 1 and len(a) < MAX_SIZE:
+        elif degree_b == 1 and lstsq:
             std = b.std(ddof=0) + EPS
             beta = np.ones(1) / std
             alpha, _, _, _ = np.linalg.lstsq(f, g[:, 0] / std, rcond=None)
@@ -205,7 +206,8 @@ class KernelBasedHGR(KernelsHGR):
                        degree_a: int,
                        degree_b: int,
                        a0: Optional[np.ndarray],
-                       b0: Optional[np.ndarray]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+                       b0: Optional[np.ndarray],
+                       lstsq: bool) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Computes HGR using numpy as backend and returns the correlation (without alpha and beta)."""
 
         def standardize(t: torch.Tensor) -> torch.Tensor:
@@ -223,12 +225,12 @@ class KernelBasedHGR(KernelsHGR):
         if degree_a == 1 and degree_b == 1:
             fa = standardize(a)
             gb = standardize(b)
-        elif degree_a == 1 and len(b) < MAX_SIZE:
+        elif degree_a == 1 and lstsq:
             # the 'gelsd' driver allows to have both more precise and more reproducible results
             fa = standardize(a)
             beta, _, _, _ = torch.linalg.lstsq(g, fa, driver='gelsd')
             gb = standardize(g @ beta)
-        elif degree_b == 1 and len(a) < MAX_SIZE:
+        elif degree_b == 1 and lstsq:
             # the 'gelsd' driver allows to have both more precise and more reproducible results
             gb = standardize(b)
             alpha, _, _, _ = torch.linalg.lstsq(f, gb, driver='gelsd')
@@ -274,7 +276,8 @@ class DoubleKernelHGR(KernelBasedHGR):
             degree_a=self.degree_a,
             degree_b=self.degree_b,
             a0=None,
-            b0=None
+            b0=None,
+            lstsq=False
         )
         return dict(correlation=float(correlation), alpha=alpha, beta=beta)
 
@@ -302,6 +305,9 @@ class SingleKernelHGR(KernelBasedHGR):
     degree: int = field(init=True, default=DEGREE)
     """The kernel degree for the variables."""
 
+    lstsq: Optional[bool] = field(init=True, default=None)
+    """Whether to use lstsq or global optimization to compute the gradients (if None, sets the value automatically)."""
+
     @property
     def name(self) -> str:
         return 'sk'
@@ -316,18 +322,20 @@ class SingleKernelHGR(KernelBasedHGR):
 
     @property
     def configuration(self) -> Dict[str, Any]:
-        return dict(name=self.name, degree=self.degree)
+        return dict(name=self.name, degree=self.degree, lstsq=self.lstsq)
 
     def correlation(self, a: np.ndarray, b: np.ndarray) -> Dict[str, Any]:
         # compute single-kernel correlations along with kernels
         # (x0 is not used when either one degree is 1, so None is always passed)
+        lstsq = (len(a) < MAX_SIZE) if self.lstsq is None else self.lstsq
         correlation_a, alpha_a, beta_a = KernelBasedHGR._compute_numpy(
             a=a,
             b=b,
             degree_a=self.degree,
             degree_b=1,
             a0=None,
-            b0=None
+            b0=None,
+            lstsq=lstsq
         )
         correlation_b, alpha_b, beta_b = KernelBasedHGR._compute_numpy(
             a=a,
@@ -335,31 +343,32 @@ class SingleKernelHGR(KernelBasedHGR):
             degree_a=1,
             degree_b=self.degree,
             a0=None,
-            b0=None
+            b0=None,
+            lstsq=lstsq
         )
         # choose the best correlation and return
         if correlation_a > correlation_b:
             correlation = correlation_a
             alpha = alpha_a
-            beta = np.zeros(self.degree)
-            beta[0] = beta_a
+            beta = beta_a + [0] * (self.degree - 1)
         else:
             correlation = correlation_b
-            alpha = np.zeros(self.degree)
-            alpha[0] = alpha_b
+            alpha = alpha_b + [0] * (self.degree - 1)
             beta = beta_b
         return dict(correlation=float(correlation), alpha=alpha, beta=beta)
 
     def __call__(self, a: torch.Tensor, b: torch.Tensor, kwargs: Dict[str, Any]) -> torch.Tensor:
         # compute single-kernel correlations
         # (x0 is not used when either one degree is 1, so None is always passed)
+        lstsq = (len(a) < MAX_SIZE) if self.lstsq is None else self.lstsq
         hgr_a, alpha_a, beta_a = KernelBasedHGR._compute_torch(
             a=a,
             b=b,
             degree_a=self.degree,
             degree_b=1,
             a0=None,
-            b0=None
+            b0=None,
+            lstsq=lstsq
         )
         hgr_b, alpha_b, beta_b = KernelBasedHGR._compute_torch(
             a=a,
@@ -367,7 +376,8 @@ class SingleKernelHGR(KernelBasedHGR):
             degree_a=1,
             degree_b=self.degree,
             a0=None,
-            b0=None
+            b0=None,
+            lstsq=lstsq
         )
         # return the maximal correlation
         return torch.maximum(hgr_a, hgr_b)
