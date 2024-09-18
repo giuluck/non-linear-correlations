@@ -290,6 +290,7 @@ class DoubleKernelHGR(KernelBasedHGR):
             b=b,
             degree_a=self.degree_a,
             degree_b=self.degree_b,
+            lstsq=False,
             **kwargs
         )
         # eventually, replace a0/b0 in the arguments with the new value for the next training step

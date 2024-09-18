@@ -36,17 +36,17 @@ class Deterministic(Dataset):
         Function(name='y_cubic', equation='$x = y^3$', direction=-1, f=lambda x: x, g=lambda y: y ** 3),
         Function(name='circle', equation='$x^2 + y^2 = 1$', direction=0, f=lambda x: -x ** 2, g=lambda y: y ** 2),
         Function(
-            name='sign',
-            equation='$y = \operatorname{sign}(x)$',
-            direction=1,
-            f=lambda x: np.sign(x),
-            g=lambda y: y
-        ),
-        Function(
             name='relu',
             equation='$y = \operatorname{max}(0, x)$',
             direction=1,
             f=lambda x: np.maximum(x, 0),
+            g=lambda y: y
+        ),
+        Function(
+            name='sign',
+            equation='$y = \operatorname{sign}(x)$',
+            direction=1,
+            f=lambda x: np.sign(x),
             g=lambda y: y
         ),
         # apply the function to the input vector rescaled by a factor of 10

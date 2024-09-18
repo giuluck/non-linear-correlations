@@ -51,4 +51,4 @@ class KernelsHGR(HGR):
         fa, gb = self._kernels(a=a, b=b, experiment=experiment)
         fa = (fa - fa.mean()) / fa.std(ddof=0)
         gb = (gb - gb.mean()) / gb.std(ddof=0)
-        return abs(np.mean(fa * gb)), fa, gb
+        return float(abs(np.mean(fa * gb))), fa, gb

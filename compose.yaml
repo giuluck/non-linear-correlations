@@ -38,6 +38,24 @@ services:
         source: ${FOLDER:-results}
         target: /project/results
 
+  lstsq:
+    image: kbhgr
+    depends_on: [ main ]
+    command: python lstsq.py --folder results
+    volumes:
+      - type: bind
+        source: ${FOLDER:-results}
+        target: /project/results
+
+  determinism:
+    image: kbhgr
+    depends_on: [ main ]
+    command: python determinism.py --folder results
+    volumes:
+      - type: bind
+        source: ${FOLDER:-results}
+        target: /project/results
+
   correlations:
     image: kbhgr
     depends_on: [ main ]

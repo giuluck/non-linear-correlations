@@ -337,7 +337,7 @@ class LearningExperiment(Experiment):
             group = LearningExperiment._metrics(experiments=experiments, configuration=configuration)
             kpis = group['kpi'].unique()
             col = len(kpis) + 1
-            fig, axes = plt.subplots(2, col, figsize=(5 * col, 8), sharex='all', sharey='none', tight_layout=True)
+            fig, axes = plt.subplots(2, col, figsize=(5 * col, 8), tight_layout=True)
             for i, sp in enumerate(['Train', 'Val']):
                 for j, kpi in enumerate(kpis):
                     j += 1
@@ -355,6 +355,7 @@ class LearningExperiment(Experiment):
                     )
                     axes[i, j].set_title(f"{kpi} ({sp.lower()})")
                     axes[i, j].get_legend().remove()
+                    axes[i, j].set_xticks([0, steps // 2, steps])
                     axes[i, j].set_ylabel(None)
                     if i == 1:
                         ub = axes[1, j].get_ylim()[1] if kpi == 'MSE' or kpi == 'BCE' or 'DIDI' in kpi else 1
@@ -385,6 +386,7 @@ class LearningExperiment(Experiment):
             )
             axes[1, 0].get_legend().remove()
             axes[1, 0].set_title('λ')
+            axes[1, 0].set_xticks([0, steps // 2, steps])
             axes[1, 0].set_ylabel(None)
             # plot legend
             handles, labels = axes[1, 0].get_legend_handles_labels()
@@ -435,7 +437,7 @@ class LearningExperiment(Experiment):
             steps=steps,
             wandb_project=wandb_project
         )
-        group = []
+        df = []
         kpi_names = ['SCORE', 'HGR-KB', 'HGR-SK', 'HGR-NN', 'DIDI']
         # retrieve results
         for (ds, mt, fl), experiment in tqdm(experiments.items(), desc='Fetching KPIs'):
@@ -448,7 +450,7 @@ class LearningExperiment(Experiment):
                 DIDI(excluded=dataset.surrogate_index, classification=dataset.classification)
             ]
             configuration = dict(Dataset=ds, Penalizer=mt)
-            group.append({**configuration, 'split': 'train', 'kpi': 'Time', 'value': experiment.elapsed_time})
+            df.append({**configuration, 'split': 'train', 'kpi': 'Time', 'value': experiment.elapsed_time})
             # if present retrieve kpis, otherwise store them if necessary
             kpi_results = experiment['kpi']
             kpi_update = False
@@ -463,29 +465,33 @@ class LearningExperiment(Experiment):
                         kpi_update = True
                         value = kpi(x=x, y=y, p=p)
                         kpi_results[index] = value
-                    group.append({**configuration, 'split': split, 'kpi': name, 'value': value})
+                    df.append({**configuration, 'split': split, 'kpi': name, 'value': value})
             if kpi_update:
                 experiment.update(flush=True, kpi=kpi_results)
-        group = pd.DataFrame(group)
-        group = group.groupby(['Dataset', 'Penalizer', 'split', 'kpi'], as_index=False).agg(['mean', 'std'])
-        group.columns = ['Dataset', 'Penalizer', 'split', 'kpi', 'mean', 'std']
-        group['text'] = [f"{row['mean']:03.0f} ± {row['std']:02.0f}" if np.all(row['kpi'] == 'Time') else
-                         f"{row['mean']:.2f} ± {row['std']:.2f}" for _, row in group.iterrows()]
-        group = group.pivot(index=['Dataset', 'Penalizer'], columns=['kpi', 'split']).reorder_levels([1, 2, 0], axis=1)
-        group = group.reindex(index=[(d, m) for d in datasets.keys() for m in metrics.keys()])
-        columns = [(kpi, split, agg)
-                   for kpi in kpi_names
-                   for split in ['train', 'val']
-                   for agg in ['mean', 'std', 'text']]
-        group = group.reindex(columns=columns + [('Time', 'train', agg) for agg in ['mean', 'std', 'text']])
-        if len(datasets) == 1:
-            group = group.droplevel(0)
+        df = pd.DataFrame(df).groupby(['Dataset', 'Penalizer', 'split', 'kpi'], as_index=False).agg(['mean', 'std'])
+        df.columns = ['Dataset', 'Penalizer', 'split', 'kpi', 'mean', 'std']
         if 'csv' in extensions:
-            file = os.path.join(folder, 'results.csv')
-            df = group[(c for c in group.columns if c[2] != 'text')]
-            df.to_csv(file, header=True, index=True)
+            file = os.path.join(folder, 'outputs.csv')
+            df.to_csv(file, header=True, index=False, float_format=lambda v: f"{v:.2f}")
         if 'tex' in extensions:
-            file = os.path.join(folder, 'results.tex')
+            file = os.path.join(folder, 'outputs.tex')
+            group = df.copy()
+            group['text'] = [
+                f"{row['mean']:02.0f} ± {row['std']:02.0f}" if np.all(row['kpi'] == 'Time') else
+                f"{100 * row['mean']:02.0f} ± {100 * row['std']:02.0f}" for _, row in group.iterrows()
+            ]
+            group = group.pivot(
+                index=['Dataset', 'Penalizer'],
+                columns=['kpi', 'split']
+            ).reorder_levels([1, 2, 0], axis=1)
+            group = group.reindex(index=[(d, m) for d in datasets.keys() for m in metrics.keys()])
+            columns = [(kpi, split, agg)
+                       for kpi in kpi_names
+                       for split in ['train', 'val']
+                       for agg in ['mean', 'std', 'text']]
+            group = group.reindex(columns=columns + [('Time', 'train', agg) for agg in ['mean', 'std', 'text']])
+            if len(datasets) == 1:
+                group = group.droplevel(0)
             df = group[(c for c in group.columns if c[2] == 'text')].droplevel(2, axis=1)
             df.to_latex(file, multicolumn=True, multirow=False, multicolumn_format='c')
 

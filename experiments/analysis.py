@@ -271,3 +271,62 @@ class AnalysisExperiment(Experiment):
             fig.savefig(file, bbox_inches='tight')
         if plot:
             fig.show()
+
+    @staticmethod
+    def limitations(folder: str = 'results', extensions: Iterable[str] = ('png',), plot: bool = False):
+        # sample data
+        sns.set(context='poster', style='whitegrid', font_scale=1.8)
+        space = np.linspace(0, 1, 500)
+        rng = np.random.default_rng(0)
+        # limitations to non-functional dependencies
+        x = np.concat([space, space])
+        y = np.concat([space, -space]) + rng.normal(0, 0.05, size=len(x))
+        fig_functional = plt.figure(figsize=(16, 9), tight_layout=True)
+        ax = fig_functional.gca()
+        sns.regplot(
+            x=x,
+            y=y,
+            color='red',
+            scatter=True,
+            line_kws=dict(linewidth=3, label='Average'),
+            scatter_kws=dict(color='black', edgecolor='black', s=80, alpha=0.7),
+            label='Data Points',
+            ax=ax
+        )
+        ax.legend(loc='best')
+        ax.set_xlabel('a')
+        ax.set_ylabel('b', rotation=0, labelpad=20)
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        # limitations to non-functional dependencies
+        x = space
+        y1 = space + rng.normal(0, 0.02, size=len(x))
+        y2 = (space + 2 * space.mean()) / 3 + rng.normal(0, 0.02, size=len(x))
+        fig_scaled = plt.figure(figsize=(16, 9), tight_layout=True)
+        ax = fig_scaled.gca()
+        for y, text, color in [(y1, 'Original', 'black'), (y2, 'Scaled', 'grey')]:
+            sns.scatterplot(
+                x=x,
+                y=y,
+                color=color,
+                edgecolor='black',
+                alpha=0.8,
+                s=80,
+                label=f'{text} Data',
+                ax=ax
+            )
+        ax.legend(loc='best')
+        ax.set_xlabel('a')
+        ax.set_ylabel('b', rotation=0, labelpad=20)
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        # store and plot if necessary
+        for extension in extensions:
+            os.makedirs(folder, exist_ok=True)
+            file = os.path.join(folder, f'limitations_functional.{extension}')
+            fig_functional.savefig(file, bbox_inches='tight')
+            file = os.path.join(folder, f'limitations_scaled.{extension}')
+            fig_scaled.savefig(file, bbox_inches='tight')
+        if plot:
+            fig_functional.show()
+            fig_scaled.show()

@@ -253,7 +253,7 @@ class CorrelationExperiment(Experiment):
     @staticmethod
     def correlations(datasets: Iterable[str],
                      metrics: Dict[str, HGR],
-                     noises: Iterable[float] = (0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0),
+                     noises: Iterable[float] = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0),
                      noise_seeds: Iterable[int] = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
                      algorithm_seeds: Iterable[int] = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
                      test: bool = False,
@@ -296,22 +296,22 @@ class CorrelationExperiment(Experiment):
             #  - for those seeds that have no available test results yet, compute it
             #  - if there is at least one test seed that was computed, update the experiment results
             elif isinstance(exp.metric, KernelsHGR):
-                test = exp['test']
+                test_results = exp['test']
                 to_update = False
                 for s in noise_seeds:
                     if s == seed:
                         continue
-                    hgr = test.get(s)
+                    hgr = test_results.get(s)
                     if hgr is None:
                         to_update = True
-                        dataset_seed = Deterministic(name=dataset, noise=noise, seed=seed)
+                        dataset_seed = Deterministic(name=dataset, noise=noise, seed=s)
                         x = dataset_seed.excluded(backend='numpy')
                         y = dataset_seed.target(backend='numpy')
                         hgr = exp.metric.kernels(a=x, b=y, experiment=exp)[0]
-                        test[s] = hgr
+                        test_results[s] = hgr
                     results.append({'correlation': hgr, 'test_seed': s, **config})
                 if to_update:
-                    exp.update(flush=True, test=test)
+                    exp.update(flush=True, test=test_results)
         # plot results
         results = pd.DataFrame(results)
         metrics = results['metric'].unique()
@@ -396,7 +396,7 @@ class CorrelationExperiment(Experiment):
     @staticmethod
     def kernels(datasets: Iterable[str],
                 metrics: Dict[str, KernelsHGR],
-                noises: Iterable[float],
+                noises: Iterable[float] = (1.0,),
                 tests: int = 30,
                 save_time: int = 60,
                 folder: str = 'results',
@@ -420,7 +420,7 @@ class CorrelationExperiment(Experiment):
             a = dataset.excluded(backend='numpy')
             b = dataset.target(backend='numpy')
             fig, axes = plt.subplot_mosaic(
-                mosaic=[['A', 'hgr'], ['data', 'B']],
+                mosaic=[['data', 'B'], ['A', 'hgr']],
                 figsize=(16, 16),
                 tight_layout=True
             )

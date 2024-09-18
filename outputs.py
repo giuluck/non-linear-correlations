@@ -125,14 +125,14 @@ parser.add_argument(
     '--extensions',
     type=str,
     nargs='*',
-    choices=['csv', 'tex'],
     default=['csv'],
+    choices=['csv', 'tex'],
     help='the extensions of the files to save'
 )
 
 # parse arguments, build experiments, then export the results
 args = parser.parse_args().__dict__
-print("Starting experiment 'results'...")
+print("Starting experiment 'outputs'...")
 for k, v in args.items():
     print('  >', k, '-->', v)
 print()
