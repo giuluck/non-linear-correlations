@@ -12,8 +12,8 @@ from tqdm import tqdm
 
 from experiments.experiment import Experiment
 from items.datasets import Dataset, Deterministic
-from items.hgr import DoubleKernelHGR, HGR, Oracle, KernelsHGR, AdversarialHGR, RandomizedDependenceCoefficient, \
-    SingleKernelHGR
+from items.indicators import DoubleKernelHGR, Indicator, Oracle, KernelsHGR, AdversarialHGR, \
+    RandomizedDependenceCoefficient, SingleKernelHGR
 
 PALETTE: List[str] = [
     '#000000',
@@ -42,7 +42,7 @@ class CorrelationExperiment(Experiment):
         pl.seed_everything(experiment.seed, workers=True)
         a = experiment.dataset.excluded(backend='numpy')
         b = experiment.dataset.target(backend='numpy')
-        return {**experiment.metric.correlation(a=a, b=b), 'test': dict()}
+        return {**experiment.indicator.correlation(a=a, b=b), 'test': dict()}
 
     @property
     def files(self) -> Dict[str, str]:
@@ -50,9 +50,9 @@ class CorrelationExperiment(Experiment):
 
     @property
     def signature(self) -> Dict[str, Any]:
-        return dict(dataset=self.dataset.configuration, metric=self.metric.configuration, seed=self.seed)
+        return dict(dataset=self.dataset.configuration, indicator=self.indicator.configuration, seed=self.seed)
 
-    def __init__(self, dataset: Dataset, metric: HGR, folder: str, seed: int):
+    def __init__(self, dataset: Dataset, indicator: Indicator, folder: str, seed: int):
         """
         :param folder:
             The folder where results are stored and loaded.
@@ -60,18 +60,18 @@ class CorrelationExperiment(Experiment):
         :param dataset:
             The dataset of which to compute the correlation.
 
-        :param metric:
+        :param indicator:
             The HGR instance used to compute the correlation.
 
         :param seed:
             The seed used for random operations in the algorithm.
         """
         # build the oracle instance with the respective dataset
-        if isinstance(metric, Oracle):
+        if isinstance(indicator, Oracle):
             assert isinstance(dataset, Deterministic), "Cannot build an Oracle instance of a non-deterministic dataset"
-            metric = metric.instance(dataset=dataset)
+            indicator = indicator.instance(dataset=dataset)
         self.dataset: Dataset = dataset
-        self.metric: HGR = metric
+        self.indicator: Indicator = indicator
         self.seed: int = seed
         super().__init__(folder=folder)
 
@@ -91,7 +91,7 @@ class CorrelationExperiment(Experiment):
             save_time=None,
             seed=0,
             dataset={dataset.name: dataset for dataset in datasets},
-            metric={(da, db): DoubleKernelHGR(degree_a=da, degree_b=db) for da in degrees_a for db in degrees_b}
+            indicator={(da, db): DoubleKernelHGR(degree_a=da, degree_b=db) for da in degrees_a for db in degrees_b}
         )
         # plot results
         sns.set(context='poster', style='whitegrid', font_scale=1.8)
@@ -138,20 +138,20 @@ class CorrelationExperiment(Experiment):
               extensions: Iterable[str] = ('png',),
               plot: bool = False):
         # run experiments
-        metrics = {'Optimization': SingleKernelHGR(lstsq=False), 'Least-Square': SingleKernelHGR(lstsq=True)}
+        indicators = {'Optimization': SingleKernelHGR(lstsq=False), 'Least-Square': SingleKernelHGR(lstsq=True)}
         experiments = CorrelationExperiment.execute(
             folder=folder,
             verbose=False,
             save_time=None,
             dataset={(dataset, seed, size): Deterministic(name=dataset, noise=noise, seed=seed, size=size)
                      for dataset in datasets for seed in seeds for size in sizes},
-            metric=metrics,
+            indicator=indicators,
             seed=0
         )
         # build results
         results = pd.DataFrame([
-            {'execution': exp.elapsed_time, 'Algorithm': metric, 'dataset': dataset, 'seed': seed, 'size': size}
-            for ((dataset, seed, size), metric), exp in tqdm(experiments.items(), desc='Storing Correlations')
+            {'execution': exp.elapsed_time, 'Algorithm': indicator, 'dataset': dataset, 'seed': seed, 'size': size}
+            for ((dataset, seed, size), indicator), exp in tqdm(experiments.items(), desc='Storing Correlations')
         ])
         # plot results
         sns.set(context='poster', style='whitegrid', font_scale=1.7)
@@ -166,7 +166,7 @@ class CorrelationExperiment(Experiment):
                 style='Algorithm',
                 estimator='mean',
                 errorbar='sd',
-                palette=PALETTE[1:len(metrics) + 1],
+                palette=PALETTE[1:len(indicators) + 1],
                 linewidth=3,
                 ax=ax
             )
@@ -195,24 +195,24 @@ class CorrelationExperiment(Experiment):
                     extensions: Iterable[str] = ('png',),
                     plot: bool = False):
         # run experiments
-        metrics = {'kb': DoubleKernelHGR(), 'nn': AdversarialHGR(), 'rdc': RandomizedDependenceCoefficient()}
+        indicators = {'kb': DoubleKernelHGR(), 'nn': AdversarialHGR(), 'rdc': RandomizedDependenceCoefficient()}
         experiments = CorrelationExperiment.execute(
             folder=folder,
             verbose=False,
             dataset={noise: Deterministic(name=dataset, noise=noise, seed=0) for noise in noises},
-            metric=metrics,
+            indicator=indicators,
             seed=list(seeds)
         )
         # build results
         results = pd.DataFrame([
-            {'correlation': exp['correlation'], 'noise': noise, 'metric': metric, 'seed': seed}
-            for (noise, metric, seed), exp in tqdm(experiments.items(), desc='Storing Correlations')
+            {'correlation': exp['correlation'], 'noise': noise, 'indicator': indicator, 'seed': seed}
+            for (noise, indicator, seed), exp in tqdm(experiments.items(), desc='Storing Correlations')
         ])
         # plot results
         sns.set(context='poster', style='whitegrid', font_scale=2.2)
-        for metric in metrics:
+        for indicator in indicators:
             fig = plt.figure(figsize=(12, 12), tight_layout=True)
-            group = results[results['metric'] == metric]
+            group = results[results['indicator'] == indicator]
             ax = fig.gca()
             for seed in seeds:
                 sns.lineplot(
@@ -243,16 +243,16 @@ class CorrelationExperiment(Experiment):
             sub_ax.set_xticks([])
             sub_ax.set_yticks([])
             for extension in extensions:
-                file = os.path.join(folder, f'determinism_{metric}.{extension}')
+                file = os.path.join(folder, f'determinism_{indicator}.{extension}')
                 fig.savefig(file, bbox_inches='tight')
             if plot:
-                fig.suptitle(f'Correlations using {metric.title()} Metric')
+                fig.suptitle(f'Correlations using {indicator.title()} Indicator')
                 fig.show()
             plt.close(fig)
 
     @staticmethod
     def correlations(datasets: Iterable[str],
-                     metrics: Dict[str, HGR],
+                     indicators: Dict[str, Indicator],
                      noises: Iterable[float] = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0),
                      noise_seeds: Iterable[int] = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
                      algorithm_seeds: Iterable[int] = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
@@ -265,7 +265,7 @@ class CorrelationExperiment(Experiment):
         datasets, noise_seeds = list(datasets), list(noise_seeds)
         assert len(noise_seeds) > 1 or not test, "Tests cannot be performed only if more than one data seed is passed"
         # run experiments
-        metrics = {'ORACLE': Oracle(), **metrics}
+        indicators = {'ORACLE': Oracle(), **indicators}
         experiments = CorrelationExperiment.execute(
             folder=folder,
             verbose=False,
@@ -274,7 +274,7 @@ class CorrelationExperiment(Experiment):
                 (name, noise, seed): Deterministic(name=name, noise=noise, seed=seed)
                 for name in datasets for noise in noises for seed in noise_seeds
             },
-            metric=metrics,
+            indicator=indicators,
             seed=list(algorithm_seeds)
         )
         # build results
@@ -285,7 +285,7 @@ class CorrelationExperiment(Experiment):
                 dataset=dataset,
                 equation=exp.dataset.equation,
                 noise=noise,
-                metric=key[1],
+                indicator=key[1],
                 data_seed=seed,
                 algorithm_seed=key[2]
             )
@@ -295,7 +295,7 @@ class CorrelationExperiment(Experiment):
             #  - try to retrieve the test results from the experiment
             #  - for those seeds that have no available test results yet, compute it
             #  - if there is at least one test seed that was computed, update the experiment results
-            elif isinstance(exp.metric, KernelsHGR):
+            elif isinstance(exp.indicator, KernelsHGR):
                 test_results = exp['test']
                 to_update = False
                 for s in noise_seeds:
@@ -307,14 +307,14 @@ class CorrelationExperiment(Experiment):
                         dataset_seed = Deterministic(name=dataset, noise=noise, seed=s)
                         x = dataset_seed.excluded(backend='numpy')
                         y = dataset_seed.target(backend='numpy')
-                        hgr = exp.metric.kernels(a=x, b=y, experiment=exp)[0]
+                        hgr = exp.indicator.kernels(a=x, b=y, experiment=exp)[0]
                         test_results[s] = hgr
                     results.append({'correlation': hgr, 'test_seed': s, **config})
                 if to_update:
                     exp.update(flush=True, test=test_results)
         # plot results
         results = pd.DataFrame(results)
-        metrics = results['metric'].unique()
+        indicators = results['indicator'].unique()
         sns.set(context='poster', style='whitegrid', font_scale=1.7)
         # plot from 1 to D for test, while from 2 to D + 1 for train to leave the first subplot for the training times
         plots = np.arange(len(datasets)) + 2
@@ -330,11 +330,11 @@ class CorrelationExperiment(Experiment):
                 data=group,
                 x='noise',
                 y='correlation',
-                hue='metric',
-                style='metric',
+                hue='indicator',
+                style='indicator',
                 estimator='mean',
                 errorbar='sd',
-                palette=PALETTE[:len(metrics)],
+                palette=PALETTE[:len(indicators)],
                 linewidth=3,
                 ax=ax
             )
@@ -357,13 +357,13 @@ class CorrelationExperiment(Experiment):
         else:
             sns.barplot(
                 data=results,
-                x='metric',
+                x='indicator',
                 y='execution',
-                hue='metric',
+                hue='indicator',
                 estimator='mean',
                 errorbar='sd',
                 linewidth=3,
-                palette=PALETTE[:len(metrics)],
+                palette=PALETTE[:len(indicators)],
                 legend=False,
                 ax=ax
             )
@@ -395,7 +395,7 @@ class CorrelationExperiment(Experiment):
 
     @staticmethod
     def kernels(datasets: Iterable[str],
-                metrics: Dict[str, KernelsHGR],
+                indicators: Dict[str, KernelsHGR],
                 noises: Iterable[float] = (1.0,),
                 tests: int = 30,
                 save_time: int = 60,
@@ -403,19 +403,19 @@ class CorrelationExperiment(Experiment):
                 extensions: Iterable[str] = ('png',),
                 plot: bool = False):
         # run experiments
-        metrics = {'ORACLE': Oracle(), **metrics}
+        indicators = {'ORACLE': Oracle(), **indicators}
         datasets = {(ds, ns): Deterministic(name=ds, noise=ns, seed=0) for ds in datasets for ns in noises}
         experiments = CorrelationExperiment.execute(
             folder=folder,
             verbose=False,
             save_time=save_time,
             dataset=datasets,
-            metric=metrics,
+            indicator=indicators,
             seed=0
         )
         sns.set(context='poster', style='white', font_scale=1.5)
         for key, dataset in datasets.items():
-            metric_experiments = {metric: experiments[(key, metric)] for metric in metrics.keys()}
+            indicator_experiments = {indicator: experiments[(key, indicator)] for indicator in indicators.keys()}
             # build and plot results
             a = dataset.excluded(backend='numpy')
             b = dataset.target(backend='numpy')
@@ -425,9 +425,9 @@ class CorrelationExperiment(Experiment):
                 tight_layout=True
             )
             fa, gb = {'index': a}, {'index': b}
-            # retrieve metric kernels
-            for name, metric in metrics.items():
-                _, fa_current, gb_current = metric.kernels(a=a, b=b, experiment=metric_experiments[name])
+            # retrieve indicator kernels
+            for name, indicator in indicators.items():
+                _, fa_current, gb_current = indicator.kernels(a=a, b=b, experiment=indicator_experiments[name])
                 # for all the non-oracle kernels, switch sign to match kernel if necessary
                 if name != 'ORACLE':
                     fa_signs = np.sign(fa_current * fa['ORACLE'])
@@ -445,7 +445,7 @@ class CorrelationExperiment(Experiment):
                     sort=True,
                     estimator=None,
                     linewidth=3,
-                    palette=PALETTE[:len(metrics)],
+                    palette=PALETTE[:len(indicators)],
                     ax=ax
                 )
                 handles, _ = ax.get_legend_handles_labels()
@@ -466,29 +466,29 @@ class CorrelationExperiment(Experiment):
             ax.set_yticks([])
             # compute and plot correlations
             correlations = [{
-                'metric': metric,
+                'indicator': indicator,
                 'split': 'train',
-                'hgr': metric_experiments[metric]['correlation']
-            } for metric in metrics.keys()]
+                'hgr': indicator_experiments[indicator]['correlation']
+            } for indicator in indicators.keys()]
             for seed in np.arange(tests) + 1:
                 dataset_seed = Deterministic(name=dataset.name, noise=dataset.noise, seed=seed)
                 x = dataset_seed.excluded(backend='numpy')
                 y = dataset_seed.target(backend='numpy')
                 correlations += [{
-                    'metric': name,
+                    'indicator': name,
                     'split': 'test',
-                    'hgr': metric.kernels(a=x, b=y, experiment=metric_experiments[name])[0]
-                } for name, metric in metrics.items()]
+                    'hgr': indicator.kernels(a=x, b=y, experiment=indicator_experiments[name])[0]
+                } for name, indicator in indicators.items()]
             ax = axes['hgr']
             sns.barplot(
                 data=pd.DataFrame(correlations),
                 y='hgr',
                 x='split',
-                hue='metric',
+                hue='indicator',
                 estimator='mean',
                 errorbar='sd',
                 linewidth=3,
-                palette=PALETTE[:len(metrics)],
+                palette=PALETTE[:len(indicators)],
                 legend=None,
                 ax=ax
             )

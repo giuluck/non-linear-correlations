@@ -5,11 +5,11 @@ import numpy as np
 import torch
 from scipy.stats import rankdata
 
-from items.hgr.hgr import HGR
+from items.indicators.indicator import Indicator
 
 
 @dataclass(frozen=True, eq=False)
-class RandomizedDependenceCoefficient(HGR):
+class RandomizedDependenceCoefficient(Indicator):
     @property
     def name(self) -> str:
         return 'rdc'
@@ -23,7 +23,7 @@ class RandomizedDependenceCoefficient(HGR):
         return dict(correlation=float(correlation))
 
     def __call__(self, a: torch.Tensor, b: torch.Tensor, kwargs: Dict[str, Any]) -> torch.Tensor:
-        raise AssertionError("RDC metric does not provide gradients")
+        raise AssertionError("RDC indicator does not provide gradients")
 
 
 # The following code is obtained from the official repository of

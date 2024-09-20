@@ -2,7 +2,7 @@ import argparse
 import logging
 
 from experiments import AnalysisExperiment
-from items.datasets import Polynomial, NonLinear, Communities, Adult, Census
+from items.datasets import Deterministic, Communities, Adult, Census
 
 log = logging.getLogger("lightning_fabric")
 log.propagate = False
@@ -21,28 +21,9 @@ def dataset(key):
     if '-' in key:
         key, noise = key.split('-')
         noise = float(noise)
-    if key == 'linear':
-        return Polynomial(degree_x=1, degree_y=1, noise=noise, seed=0)
-    elif key == 'x_square':
-        return Polynomial(degree_x=2, degree_y=1, noise=noise, seed=0)
-    elif key == 'x_cubic':
-        return Polynomial(degree_x=3, degree_y=1, noise=noise, seed=0)
-    elif key == 'y_square':
-        return Polynomial(degree_x=1, degree_y=2, noise=noise, seed=0)
-    elif key == 'y_cubic':
-        return Polynomial(degree_x=1, degree_y=3, noise=noise, seed=0)
-    elif key == 'circle':
-        return Polynomial(degree_x=2, degree_y=2, noise=noise, seed=0)
-    elif key == 'sign':
-        return NonLinear(fn='sign', noise=noise, seed=0)
-    elif key == 'relu':
-        return NonLinear(fn='relu', noise=noise, seed=0)
-    elif key == 'sin':
-        return NonLinear(fn='sin', noise=noise, seed=0)
-    elif key == 'tanh':
-        return NonLinear(fn='tanh', noise=noise, seed=0)
-    else:
-        raise KeyError(f"Invalid key '{key}' for dataset")
+    if key in Deterministic.FUNCTIONS:
+        return Deterministic(name=key, noise=noise, seed=0)
+    raise KeyError(f"Invalid key '{key}' for dataset")
 
 
 # build argument parser

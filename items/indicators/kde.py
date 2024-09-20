@@ -5,13 +5,13 @@ import numpy as np
 import torch
 from math import pi, sqrt
 
-from items.hgr.hgr import HGR
+from items.indicators.indicator import Indicator
 
 
 # noinspection DuplicatedCode
 @dataclass(frozen=True, eq=False)
-class DensityHGR(HGR):
-    """Torch-based implementation of the HGR metric."""
+class DensityHGR(Indicator):
+    """Torch-based implementation of the HGR-KDE indicator."""
 
     @property
     def name(self) -> str:
@@ -33,8 +33,8 @@ class DensityHGR(HGR):
 
 # noinspection DuplicatedCode
 @dataclass(frozen=True, eq=False)
-class ChiSquare(HGR):
-    """Torch-based implementation of the CHI^2 metric."""
+class ChiSquare(Indicator):
+    """Torch-based implementation of the CHI^2 indicator."""
 
     @property
     def name(self) -> str:

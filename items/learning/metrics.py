@@ -4,7 +4,7 @@ from typing import Literal, Callable, Optional
 import numpy as np
 from sklearn.metrics import mean_squared_error, log_loss, r2_score, roc_auc_score
 
-from items.hgr import HGR, DoubleKernelHGR, AdversarialHGR, DensityHGR, SingleKernelHGR
+from items.indicators import Indicator, DoubleKernelHGR, AdversarialHGR, DensityHGR, SingleKernelHGR
 
 
 class Metric:
@@ -105,7 +105,7 @@ class Correlation(Metric):
             def_name = 'HGR-KDE'
         else:
             raise AssertionError(f"Invalid correlation algorithm '{algorithm}'")
-        self._metric: HGR = metric
+        self._metric: Indicator = metric
         self._excluded: int = excluded
         super(Correlation, self).__init__(name=def_name if name is None else name)
 

@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from tqdm import trange
 
-from items.hgr.hgr import KernelsHGR
+from items.indicators.indicator import KernelsHGR
 
 DEVICE: torch.device = torch.device(str("cuda:0") if torch.cuda.is_available() else "cpu")
 """The torch device on which to run the adversarial networks."""
@@ -21,6 +21,8 @@ EPSILON: float = 0.000000001
 
 @dataclass(frozen=True, eq=False)
 class AdversarialHGR(KernelsHGR):
+    """Torch-based implementation of the HGR-NN indicator."""
+
     epochs: int = field(init=True, default=1000)
     """The number of epochs used to run the adversarial networks."""
 

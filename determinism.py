@@ -8,7 +8,7 @@ log.propagate = False
 log.setLevel(logging.ERROR)
 
 # build argument parser
-parser = argparse.ArgumentParser(description='Test determinism of HGR metrics')
+parser = argparse.ArgumentParser(description='Test determinism of HGR indicators')
 parser.add_argument(
     '-f',
     '--folder',

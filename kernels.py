@@ -4,15 +4,15 @@ import re
 
 from experiments import CorrelationExperiment
 from items.datasets import Deterministic
-from items.hgr import AdversarialHGR, DoubleKernelHGR, SingleKernelHGR
+from items.indicators import AdversarialHGR, DoubleKernelHGR, SingleKernelHGR
 
 log = logging.getLogger("lightning_fabric")
 log.propagate = False
 log.setLevel(logging.ERROR)
 
 
-# function to retrieve the valid metric
-def metrics(key):
+# function to retrieve the valid indicator
+def indicators(key):
     if key == 'nn':
         return 'HGR-NN', AdversarialHGR()
     elif key == 'kb':
@@ -26,7 +26,7 @@ def metrics(key):
         degree = int(key[3:])
         return f'HGR-SK ({degree})', SingleKernelHGR(degree=degree)
     else:
-        raise KeyError(f"Invalid key '{key}' for metric")
+        raise KeyError(f"Invalid key '{key}' for indicator")
 
 
 # build argument parser
@@ -48,12 +48,12 @@ parser.add_argument(
     help='the dataset on which to run the experiment'
 )
 parser.add_argument(
-    '-m',
-    '--metrics',
+    '-i',
+    '--indicators',
     type=str,
     nargs='*',
     default=['kb', 'kb-2', 'nn'],
-    help='the metric used to compute the correlations'
+    help='the indicator used to compute the correlations'
 )
 parser.add_argument(
     '-n',
@@ -90,5 +90,5 @@ print("Starting experiment 'kernels'...")
 for k, v in args.items():
     print('  >', k, '-->', v)
 print()
-args['metrics'] = {k: v for k, v in [metrics(key=mt) for mt in args['metrics']]}
+args['indicators'] = {k: v for k, v in [indicators(key=mt) for mt in args['indicators']]}
 CorrelationExperiment.kernels(**args)

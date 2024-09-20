@@ -15,10 +15,9 @@ from tqdm import tqdm
 
 from experiments.experiment import Experiment
 from items.datasets import SurrogateDataset
-from items.hgr import HGR
-from items.learning import MultiLayerPerceptron, Data, Loss, Accuracy, Metric, History, Progress, Storage, \
-    Correlation
-from items.learning.metrics import DIDI
+from items.indicators import Indicator
+from items.learning import MultiLayerPerceptron, Data, Loss, Accuracy, History, Progress, Storage, Correlation, DIDI, \
+    Metric
 
 PALETTE: List[str] = [
     '#000000',
@@ -60,7 +59,7 @@ class LearningExperiment(Experiment):
             units=[len(dataset.input_names), *experiment.units],
             classification=dataset.classification,
             feature=dataset.excluded_index,
-            metric=experiment.metric,
+            indicator=experiment.indicator,
             alpha=experiment.alpha,
             threshold=experiment.threshold
         )
@@ -130,7 +129,7 @@ class LearningExperiment(Experiment):
     def signature(self) -> Dict[str, Any]:
         return dict(
             dataset=self.dataset.configuration,
-            metric=dict(name='unc') if self.metric is None else self.metric.configuration,
+            indicator=dict(name='unc') if self.indicator is None else self.indicator.configuration,
             steps=self.steps,
             units=self.units,
             batch=self.batch,
@@ -143,7 +142,7 @@ class LearningExperiment(Experiment):
     def __init__(self,
                  folder: str,
                  dataset: SurrogateDataset,
-                 metric: Optional[HGR],
+                 indicator: Optional[Indicator],
                  steps: int,
                  units: Optional[Iterable[int]],
                  batch: Optional[int],
@@ -156,8 +155,8 @@ class LearningExperiment(Experiment):
         :param dataset:
             The dataset used in the experiment.
 
-        :param metric:
-            The metric to be used as penalty, or None for unconstrained model.
+        :param indicator:
+            The indicator to be used as penalty, or None for unconstrained model.
 
         :param steps:
             The number of training steps.
@@ -183,11 +182,11 @@ class LearningExperiment(Experiment):
         :param wandb_project:
             The name of the Weights & Biases project for logging, or None for no logging.
         """
-        if metric is None:
+        if indicator is None:
             alpha = None
             threshold = 0.0
         self.dataset: SurrogateDataset = dataset
-        self.metric: Optional[HGR] = metric
+        self.indicator: Optional[Indicator] = indicator
         self.steps: int = steps
         self.units: List[int] = dataset.units if units is None else list(units)
         self.batch: int = dataset.batch if batch is None else batch
@@ -224,7 +223,7 @@ class LearningExperiment(Experiment):
             verbose=True,
             save_time=0,
             dataset=datasets,
-            metric=None,
+            indicator=None,
             batch=batches,
             units=units,
             threshold=0.0,
@@ -289,7 +288,7 @@ class LearningExperiment(Experiment):
 
     @staticmethod
     def history(datasets: Iterable[SurrogateDataset],
-                metrics: Dict[str, HGR],
+                indicators: Dict[str, Indicator],
                 steps: int = 500,
                 folds: int = 5,
                 units: Optional[Iterable[int]] = None,
@@ -300,13 +299,13 @@ class LearningExperiment(Experiment):
                 folder: str = 'results',
                 extensions: Iterable[str] = ('png',),
                 plot: bool = False):
-        metrics = {'//': None, **metrics}
+        indicators = {'//': None, **indicators}
         datasets = {dataset.name: dataset for dataset in datasets}
         units = None if units is None else tuple(units)
 
         def configuration(ds, mt, fl):
             d = datasets[ds]
-            # return a list of metrics for loss, accuracy, correlation, and optionally surrogate fairness
+            # return a list of indicators for loss, accuracy, correlation, and optionally surrogate fairness
             return dict(Dataset=ds, Penalizer=mt, fold=fl), [
                 Accuracy(classification=d.classification),
                 Correlation(excluded=d.excluded_index, algorithm='sk'),
@@ -323,7 +322,7 @@ class LearningExperiment(Experiment):
                 save_time=0,
                 verbose=True,
                 dataset={name: dataset},
-                metric=metrics,
+                indicator=indicators,
                 fold=list(range(folds)),
                 folds=folds,
                 units=units,
@@ -350,7 +349,7 @@ class LearningExperiment(Experiment):
                         linewidth=2,
                         hue='Penalizer',
                         style='Penalizer',
-                        palette=PALETTE[:len(metrics)],
+                        palette=PALETTE[:len(indicators)],
                         ax=axes[i, j]
                     )
                     axes[i, j].set_title(f"{kpi} ({sp.lower()})")
@@ -365,7 +364,7 @@ class LearningExperiment(Experiment):
             lambdas = []
             for (_, mtr, fld), experiment in experiments.items():
                 history = experiment['history']
-                alphas = ([np.nan] * len(history['alpha'])) if experiment.metric is None else history['alpha']
+                alphas = ([np.nan] * len(history['alpha'])) if experiment.indicator is None else history['alpha']
                 lambdas.extend([{
                     'Penalizer': mtr,
                     'fold': fld,
@@ -381,7 +380,7 @@ class LearningExperiment(Experiment):
                 linewidth=2,
                 hue='Penalizer',
                 style='Penalizer',
-                palette=PALETTE[:len(metrics)],
+                palette=PALETTE[:len(indicators)],
                 ax=axes[1, 0]
             )
             axes[1, 0].get_legend().remove()
@@ -408,7 +407,7 @@ class LearningExperiment(Experiment):
 
     @staticmethod
     def outputs(datasets: Iterable[SurrogateDataset],
-                metrics: Dict[str, HGR],
+                indicators: Dict[str, Indicator],
                 steps: int = 500,
                 folds: int = 5,
                 units: Optional[Iterable[int]] = None,
@@ -418,7 +417,7 @@ class LearningExperiment(Experiment):
                 wandb_project: Optional[str] = None,
                 folder: str = 'results',
                 extensions: Iterable[str] = ('csv',)):
-        metrics = {'//': None, **metrics}
+        indicators = {'//': None, **indicators}
         datasets = {dataset.name: dataset for dataset in datasets}
         units = None if units is None else tuple(units)
         # run experiments
@@ -427,7 +426,7 @@ class LearningExperiment(Experiment):
             save_time=0,
             verbose=True,
             dataset=datasets,
-            metric=metrics,
+            indicator=indicators,
             fold=list(range(folds)),
             folds=folds,
             units=units,
@@ -484,7 +483,7 @@ class LearningExperiment(Experiment):
                 index=['Dataset', 'Penalizer'],
                 columns=['kpi', 'split']
             ).reorder_levels([1, 2, 0], axis=1)
-            group = group.reindex(index=[(d, m) for d in datasets.keys() for m in metrics.keys()])
+            group = group.reindex(index=[(d, m) for d in datasets.keys() for m in indicators.keys()])
             columns = [(kpi, split, agg)
                        for kpi in kpi_names
                        for split in ['train', 'val']
@@ -506,13 +505,13 @@ class LearningExperiment(Experiment):
             xvl = exp['val_inputs']
             yvl = exp['val_target'].flatten()
             history = exp['history']
-            # compute metrics for each step
+            # compute indicators for each step
             info, metrics = configuration(*index)
             outputs = {
                 **{f'train_{mtr.name}': history.get(f'train_{mtr.name}', []) for mtr in metrics},
                 **{f'val_{mtr.name}': history.get(f'val_{mtr.name}', []) for mtr in metrics},
             }
-            # if the metrics are already pre-computed, load them
+            # if the indicators are already pre-computed, load them
             if np.all([len(v) == len(history['step']) for v in outputs.values()]):
                 df = pd.DataFrame(outputs).melt()
                 df['split'] = df['variable'].map(lambda v: v.split('_')[0].title())

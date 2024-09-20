@@ -6,7 +6,7 @@ import warnings
 
 from experiments import LearningExperiment
 from items.datasets import Communities, Adult, Census
-from items.hgr import DoubleKernelHGR, SingleKernelHGR, AdversarialHGR, DensityHGR
+from items.indicators import DoubleKernelHGR, SingleKernelHGR, AdversarialHGR, DensityHGR
 
 # noinspection DuplicatedCode
 os.environ['WANDB_SILENT'] = 'true'
@@ -18,8 +18,8 @@ for name in ["lightning_fabric", "pytorch_lightning.utilities.rank_zero", "pytor
     log.setLevel(logging.ERROR)
 
 
-# function to retrieve the valid metric
-def metrics(key):
+# function to retrieve the valid indicator
+def indicators(key):
     if key == 'nn':
         return 'HGR-NN', AdversarialHGR()
     elif key == 'kde':
@@ -35,7 +35,7 @@ def metrics(key):
         degree = int(key[3:])
         return f'HGR-SK ({degree})', SingleKernelHGR(degree=degree)
     else:
-        raise KeyError(f"Invalid key '{key}' for metric")
+        raise KeyError(f"Invalid key '{key}' for indicator")
 
 
 # list all the valid datasets
@@ -46,7 +46,7 @@ datasets = dict(
 )
 
 # build argument parser
-parser = argparse.ArgumentParser(description='Train multiple neural networks using different HGR metrics as penalizers')
+parser = argparse.ArgumentParser(description='Train multiple neural networks using different HGR indicators as penalizers')
 parser.add_argument(
     '-f',
     '--folder',
@@ -64,12 +64,12 @@ parser.add_argument(
     help='the datasets on which to run the experiment'
 )
 parser.add_argument(
-    '-m',
-    '--metrics',
+    '-i',
+    '--indicators',
     type=str,
     nargs='*',
     default=['kb', 'sk', 'nn'],
-    help='the metrics used as penalties'
+    help='the indicators used as penalties'
 )
 parser.add_argument(
     '-s',
@@ -141,5 +141,5 @@ for k, v in args.items():
     print('  >', k, '-->', v)
 print()
 args['datasets'] = [datasets[k] for k in args['datasets']]
-args['metrics'] = {k: v for k, v in [metrics(m) for m in args['metrics']]}
+args['indicators'] = {k: v for k, v in [indicators(m) for m in args['indicators']]}
 LearningExperiment.history(**args)

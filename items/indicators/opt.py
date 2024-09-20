@@ -8,10 +8,10 @@ import torch
 from scipy.optimize import NonlinearConstraint, minimize
 from scipy.stats import pearsonr
 
-from items.hgr import KernelsHGR
+from items.indicators.indicator import KernelsHGR
 
 DEGREE: int = 5
-"""Default degree for kernel-based metrics."""
+"""Default degree for kernel-based indicators."""
 
 TOL: float = 1e-2
 """The tolerance used when checking for linear dependencies and when solving the optimization problem."""

@@ -6,12 +6,12 @@ import torch
 from scipy.stats import pearsonr
 
 from items.datasets import Deterministic
-from items.hgr import KernelsHGR
+from items.indicators.indicator import KernelsHGR
 
 
 @dataclass(frozen=True, eq=False)
 class Oracle(KernelsHGR):
-    """A metric that knows the exact relationship of a deterministic dataset. The factory class trick is used not to
+    """An indicator that knows the exact relationship of a deterministic dataset. The factory class trick is used not to
     break compatibility with DoE implementation, since an oracle depends on the dataset which is being used."""
 
     @dataclass(frozen=True, eq=False)
@@ -37,7 +37,7 @@ class Oracle(KernelsHGR):
             return dict(correlation=abs(float(correlation)))
 
         def __call__(self, a: torch.Tensor, b: torch.Tensor, kwargs: Dict[str, Any]) -> torch.Tensor:
-            raise AssertionError("Oracle metric does not provide gradients")
+            raise AssertionError("Oracle indicator does not provide gradients")
 
     # noinspection PyMethodMayBeStatic
     def instance(self, dataset: Deterministic) -> _Instance:
@@ -51,14 +51,14 @@ class Oracle(KernelsHGR):
 
     @property
     def name(self) -> str:
-        raise AssertionError("Oracle is a factory object, please call method '.instance()' to get a valid metric")
+        raise AssertionError("Oracle is a factory object, please call method '.instance()' to get a valid indicator")
 
     @property
     def configuration(self) -> Dict[str, Any]:
-        raise AssertionError("Oracle is a factory object, please call method '.instance()' to get a valid metric")
+        raise AssertionError("Oracle is a factory object, please call method '.instance()' to get a valid indicator")
 
     def correlation(self, a: np.ndarray, b: np.ndarray) -> Dict[str, Any]:
-        raise AssertionError("Oracle is a factory object, please call method '.instance()' to get a valid metric")
+        raise AssertionError("Oracle is a factory object, please call method '.instance()' to get a valid indicator")
 
     def __call__(self, a: torch.Tensor, b: torch.Tensor, kwargs: Dict[str, Any]) -> torch.Tensor:
-        raise AssertionError("Oracle is a factory object, please call method '.instance()' to get a valid metric")
+        raise AssertionError("Oracle is a factory object, please call method '.instance()' to get a valid indicator")

@@ -9,8 +9,8 @@ from items.item import Item
 
 
 @dataclass(frozen=True, eq=False)
-class HGR(Item):
-    """Interface for an object that computes the HGR correlation differentiable way."""
+class Indicator(Item):
+    """Interface for an object that computes a correlation indicator in a differentiable way."""
 
     @classmethod
     def last_edit(cls) -> str:
@@ -19,7 +19,7 @@ class HGR(Item):
     @property
     @abstractmethod
     def name(self) -> str:
-        """The name of the HGR metric."""
+        """The name of the HGR indicator."""
         pass
 
     @abstractmethod
@@ -35,7 +35,7 @@ class HGR(Item):
         pass
 
 
-class KernelsHGR(HGR):
+class KernelsHGR(Indicator):
     """Interface for an HGR object that also allows to inspect kernels."""
 
     @abstractmethod
@@ -46,8 +46,8 @@ class KernelsHGR(HGR):
     def kernels(self, a: np.ndarray, b: np.ndarray, experiment: Any) -> Tuple[float, np.ndarray, np.ndarray]:
         """Returns the f(a) and g(b) kernels, along with the computed correlation, given the two input vectors and the
         result of the experiments."""
-        metric = getattr(experiment, 'metric')
-        assert self == metric, f'Unexpected metric {metric} when computing kernels'
+        indicator = getattr(experiment, 'indicator')
+        assert self == indicator, f'Unexpected indicator {indicator} when computing kernels'
         fa, gb = self._kernels(a=a, b=b, experiment=experiment)
         fa = (fa - fa.mean()) / fa.std(ddof=0)
         gb = (gb - gb.mean()) / gb.std(ddof=0)

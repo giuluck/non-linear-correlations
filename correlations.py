@@ -4,7 +4,7 @@ import re
 
 from experiments import CorrelationExperiment
 from items.datasets import Deterministic
-from items.hgr import DoubleKernelHGR, DensityHGR, ChiSquare, RandomizedDependenceCoefficient, SingleKernelHGR, \
+from items.indicators import DoubleKernelHGR, DensityHGR, ChiSquare, RandomizedDependenceCoefficient, SingleKernelHGR, \
     AdversarialHGR
 
 log = logging.getLogger("lightning_fabric")
@@ -12,8 +12,8 @@ log.propagate = False
 log.setLevel(logging.ERROR)
 
 
-# function to retrieve the valid metric
-def metrics(key):
+# function to retrieve the valid indicator
+def indicators(key):
     if key == 'nn':
         return 'HGR-NN', AdversarialHGR()
     elif key == 'kde':
@@ -35,11 +35,11 @@ def metrics(key):
         degree = int(key[3:])
         return f'HGR-SK ({degree})', SingleKernelHGR(degree=degree)
     else:
-        raise KeyError(f"Invalid key '{key}' for metric")
+        raise KeyError(f"Invalid key '{key}' for indicator")
 
 
 # build argument parser
-parser = argparse.ArgumentParser(description='Test multiple HGR metrics on multiple datasets')
+parser = argparse.ArgumentParser(description='Test multiple HGR indicators on multiple datasets')
 parser.add_argument(
     '-f',
     '--folder',
@@ -57,12 +57,12 @@ parser.add_argument(
     help='the datasets on which to run the experiment'
 )
 parser.add_argument(
-    '-m',
-    '--metrics',
+    '-i',
+    '--indicators',
     type=str,
     nargs='*',
     default=['kb', 'sk', 'nn', 'kde', 'rdc'],
-    help='the metric used to compute the correlations'
+    help='the indicator used to compute the correlations'
 )
 parser.add_argument(
     '-n',
@@ -127,5 +127,5 @@ print("Starting experiment 'correlations'...")
 for k, v in args.items():
     print('  >', k, '-->', v)
 print()
-args['metrics'] = {k: v for k, v in [metrics(mt) for mt in args['metrics']]}
+args['indicators'] = {k: v for k, v in [indicators(mt) for mt in args['indicators']]}
 CorrelationExperiment.correlations(**args)

@@ -11,8 +11,8 @@ from scipy.stats import pearsonr
 from tqdm import tqdm
 
 from experiments.experiment import Experiment
-from items.datasets import Dataset
-from items.hgr import DoubleKernelHGR
+from items.datasets import Dataset, Deterministic
+from items.indicators import DoubleKernelHGR
 
 SEED: int = 0
 """The random seed used in the experiment."""
@@ -29,13 +29,17 @@ class AnalysisExperiment(Experiment):
     def routine(cls, experiment: 'AnalysisExperiment') -> Dict[str, Any]:
         a, b = experiment.features
         pl.seed_everything(SEED, workers=True)
-        return experiment.metric.correlation(a=experiment.dataset[a].values, b=experiment.dataset[b].values)
+        return experiment.indicator.correlation(a=experiment.dataset[a].values, b=experiment.dataset[b].values)
 
     @property
     def signature(self) -> Dict[str, Any]:
-        return dict(dataset=self.dataset.configuration, metric=self.metric.configuration, features=list(self.features))
+        return dict(
+            dataset=self.dataset.configuration,
+            indicator=self.indicator.configuration,
+            features=list(self.features)
+        )
 
-    def __init__(self, folder: str, dataset: Dataset, metric: DoubleKernelHGR, features: Tuple[str, str]):
+    def __init__(self, folder: str, dataset: Dataset, indicator: DoubleKernelHGR, features: Tuple[str, str]):
         """
         :param folder:
             The folder where results are stored and loaded.
@@ -43,14 +47,14 @@ class AnalysisExperiment(Experiment):
         :param dataset:
             The dataset on which to perform the analysis.
 
-        :param metric:
+        :param indicator:
             The Kernel-Based HGR instance used to perform the analysis.
 
         :param features:
             The pair of features of the dataset on which to perform the analysis.
         """
         self.dataset: Dataset = dataset
-        self.metric: DoubleKernelHGR = metric
+        self.indicator: DoubleKernelHGR = indicator
         self.features: Tuple[str, str] = features
         super().__init__(folder=folder)
 
@@ -78,7 +82,7 @@ class AnalysisExperiment(Experiment):
                     verbose=False,
                     save_time=None,
                     dataset=dataset,
-                    metric=DoubleKernelHGR(),
+                    indicator=DoubleKernelHGR(),
                     features={other: (feature, other) for other in dataset.input_names if other != feature}
                 )
                 print()
@@ -110,7 +114,7 @@ class AnalysisExperiment(Experiment):
             x = dataset.excluded(backend='numpy')
             y = dataset.target(backend='numpy')
             # run experiment (use a tuple to wrap features otherwise they will get unpacked as single items)
-            metrics = {
+            indicators = {
                 'lin.': DoubleKernelHGR(degree_a=1, degree_b=1),
                 'dir.': DoubleKernelHGR(degree_b=1),
                 'inv.': DoubleKernelHGR(degree_a=1),
@@ -121,7 +125,7 @@ class AnalysisExperiment(Experiment):
                 verbose=None,
                 save_time=None,
                 dataset=dataset,
-                metric=metrics,
+                indicator=indicators,
                 features=(dataset.excluded_name, dataset.target_name)
             )
             fig, axes = plt.subplot_mosaic(
@@ -132,7 +136,7 @@ class AnalysisExperiment(Experiment):
             # plot kernels
             for key, title, selector in [('dir.', 'Direct', 1), ('inv.', 'Inverse', -1)]:
                 exp = experiments[(key,)]
-                kernels = exp.metric.kernels(a=x, b=y, experiment=exp)
+                kernels = exp.indicator.kernels(a=x, b=y, experiment=exp)
                 f1, f2 = exp.features[::selector]
                 ax = axes[key]
                 # standardize inputs and outputs to compute the pearson correlation and have comparable data
@@ -215,8 +219,8 @@ class AnalysisExperiment(Experiment):
         # build axes
         axes = {
             'data': ('center left', 'a', 'b', 14, f'Correlation: {abs(pearsonr(a, b)[0]):.3f}'),
-            'fa': ('upper center', 'a', 'f(a)', 30, f"$\\alpha$ = {result['alpha'].round(2)}"),
-            'gb': ('lower center', 'b', 'g(b)', 34, f"$\\beta$ = {result['beta'].round(2)}"),
+            'fa': ('upper center', 'a', 'f(a)', 30, f"$\\alpha$ = {np.round(result['alpha'], 2)}"),
+            'gb': ('lower center', 'b', 'g(b)', 34, f"$\\beta$ = {np.round(result['beta'], 2)}"),
             'proj': ('center right', 'f(a)', 'g(b)', 34, f"Correlation: {result['correlation']:.3f}")
         }
         for key, (loc, xl, yl, lp, tl) in axes.items():
@@ -233,10 +237,24 @@ class AnalysisExperiment(Experiment):
         ax.arrow(0.62, 0.70, 0.14, -0.1, color='black', linewidth=2, head_width=0.015)
         ax.arrow(0.62, 0.30, 0.14, 0.1, color='black', linewidth=2, head_width=0.015)
         # plot data, kernels, and projections
-        dataset.plot(ax=axes['data'], color='black', edgecolor='black', alpha=0.6, s=10)
+        sns.regplot(
+            x=a,
+            y=b,
+            color='red',
+            line_kws=dict(linewidth=1),
+            scatter_kws=dict(color='black', edgecolor='black', s=10, alpha=0.6),
+            ax=axes['data']
+        )
         sns.lineplot(x=a, y=fa, sort=True, linewidth=2, color='black', ax=axes['fa'])
         sns.lineplot(x=b, y=gb, sort=True, linewidth=2, color='black', ax=axes['gb'])
-        axes['proj'].scatter(fa, gb, color='black', edgecolor='black', alpha=0.6, s=10)
+        sns.regplot(
+            x=fa,
+            y=gb,
+            color='red',
+            line_kws=dict(linewidth=1),
+            scatter_kws=dict(color='black', edgecolor='black', s=10, alpha=0.6),
+            ax=axes['proj']
+        )
         # store and plot if necessary
         for extension in extensions:
             os.makedirs(folder, exist_ok=True)
@@ -275,47 +293,46 @@ class AnalysisExperiment(Experiment):
     @staticmethod
     def limitations(folder: str = 'results', extensions: Iterable[str] = ('png',), plot: bool = False):
         # sample data
-        sns.set(context='poster', style='whitegrid', font_scale=1.8)
-        space = np.linspace(0, 1, 500)
+        sns.set(context='poster', style='whitegrid', font_scale=2)
+        space = np.linspace(0, 1, 300)
         rng = np.random.default_rng(0)
         # limitations to non-functional dependencies
         x = np.concat([space, space])
-        y = np.concat([space, -space]) + rng.normal(0, 0.05, size=len(x))
-        fig_functional = plt.figure(figsize=(16, 9), tight_layout=True)
+        y = np.concat([space, -space]) + rng.normal(0, 0.1, size=len(x))
+        fig_functional = plt.figure(figsize=(15, 9), tight_layout=True)
         ax = fig_functional.gca()
         sns.regplot(
             x=x,
             y=y,
             color='red',
             scatter=True,
-            line_kws=dict(linewidth=3, label='Average'),
-            scatter_kws=dict(color='black', edgecolor='black', s=80, alpha=0.7),
+            line_kws=dict(linewidth=5, label='Average'),
+            scatter_kws=dict(color='black', edgecolor='white', s=300),
             label='Data Points',
             ax=ax
         )
-        ax.legend(loc='best')
+        ax.legend(loc='upper left')
         ax.set_xlabel('a')
         ax.set_ylabel('b', rotation=0, labelpad=20)
         ax.set_xticklabels([])
         ax.set_yticklabels([])
         # limitations to non-functional dependencies
         x = space
-        y1 = space + rng.normal(0, 0.02, size=len(x))
-        y2 = (space + 2 * space.mean()) / 3 + rng.normal(0, 0.02, size=len(x))
-        fig_scaled = plt.figure(figsize=(16, 9), tight_layout=True)
+        y1 = space + rng.normal(0, 0.05, size=len(x))
+        y2 = (space + 2 * space.mean()) / 3 + rng.normal(0, 0.03, size=len(x))
+        fig_scaled = plt.figure(figsize=(15, 9), tight_layout=True)
         ax = fig_scaled.gca()
         for y, text, color in [(y1, 'Original', 'black'), (y2, 'Scaled', 'grey')]:
             sns.scatterplot(
                 x=x,
                 y=y,
                 color=color,
-                edgecolor='black',
-                alpha=0.8,
-                s=80,
+                edgecolor='white',
+                s=300,
                 label=f'{text} Data',
                 ax=ax
             )
-        ax.legend(loc='best')
+        ax.legend(loc='upper left')
         ax.set_xlabel('a')
         ax.set_ylabel('b', rotation=0, labelpad=20)
         ax.set_xticklabels([])

@@ -7,7 +7,7 @@ from torch import nn, Tensor
 from torch.autograd import Variable
 from torch.optim import Optimizer, Adam
 
-from items.hgr import HGR
+from items.indicators import Indicator
 
 
 class MultiLayerPerceptron(pl.LightningModule):
@@ -17,7 +17,7 @@ class MultiLayerPerceptron(pl.LightningModule):
                  units: Iterable[int],
                  classification: bool,
                  feature: int,
-                 metric: Optional[HGR],
+                 indicator: Optional[Indicator],
                  alpha: Optional[float],
                  threshold: float):
         """
@@ -30,8 +30,8 @@ class MultiLayerPerceptron(pl.LightningModule):
         :param feature:
             The index of the excluded feature.
 
-        :param metric:
-            The kind of metric to be imposed as penalty, or None for unconstrained model.
+        :param indicator:
+            The kind of indicator to be imposed as penalty, or None for unconstrained model.
 
         :param alpha:
             The weight of the penalizer, or None for automatic weight regularization via lagrangian dual technique.
@@ -56,11 +56,11 @@ class MultiLayerPerceptron(pl.LightningModule):
             layers.append(nn.Sigmoid())
 
         # if there is a penalty and alpha is None, then build a variable for alpha
-        if alpha is None and metric is not None:
+        if alpha is None and indicator is not None:
             alpha = Variable(torch.zeros(1), requires_grad=True, name='alpha')
         # otherwise, check that either there is a penalty or alpha is None (since there is no penalty)
         else:
-            assert metric is not None or alpha is None, "If metric=None, alpha must be None as well."
+            assert indicator is not None or alpha is None, "If indicator=None, alpha must be None as well."
 
         self.model: nn.Sequential = nn.Sequential(*layers)
         """The neural network."""
@@ -68,8 +68,8 @@ class MultiLayerPerceptron(pl.LightningModule):
         self.loss: nn.Module = nn.BCELoss() if classification else nn.MSELoss()
         """The loss function."""
 
-        self.metric: Optional[HGR] = metric
-        """The metric to be used as penalty, or None for unconstrained model."""
+        self.indicator: Optional[Indicator] = indicator
+        """The indicator to be used as penalty, or None for unconstrained model."""
 
         self.alpha: Union[None, float, Variable] = alpha
         """The alpha value for balancing compiled and regularized loss."""
@@ -106,12 +106,12 @@ class MultiLayerPerceptron(pl.LightningModule):
         pred = self.model(inp)
         def_loss = self.loss(pred, out)
         # if there is a penalty, compute it for the minimization step
-        if self.metric is None:
+        if self.indicator is None:
             reg = torch.tensor(0.0)
             alpha = torch.tensor(0.0)
             reg_loss = torch.tensor(0.0)
         else:
-            reg = self.metric(a=inp[:, self.feature], b=pred.squeeze(), kwargs=self._penalty_arguments)
+            reg = self.indicator(a=inp[:, self.feature], b=pred.squeeze(), kwargs=self._penalty_arguments)
             reg = torch.maximum(torch.zeros(1), reg - self.threshold)
             reg_loss = self.alpha * reg
             alpha = self.alpha
@@ -124,7 +124,7 @@ class MultiLayerPerceptron(pl.LightningModule):
             reg_opt.zero_grad()
             pred = self.model(inp)
             def_loss = self.loss(pred, out)
-            reg = self.metric(a=inp[:, self.feature], b=pred.squeeze(), kwargs=self._penalty_arguments)
+            reg = self.indicator(a=inp[:, self.feature], b=pred.squeeze(), kwargs=self._penalty_arguments)
             reg = torch.maximum(torch.zeros(1), reg - self.threshold)
             reg_loss = self.alpha * reg
             tot_loss = def_loss + reg_loss
