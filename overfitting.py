@@ -1,7 +1,7 @@
 import argparse
 import logging
 
-from experiments import AnalysisExperiment
+from experiments import FigureExperiment
 
 log = logging.getLogger("lightning_fabric")
 log.propagate = False
@@ -36,4 +36,4 @@ print("Starting experiment 'overfitting'...")
 for k, v in args.items():
     print('  >', k, '-->', v)
 print()
-AnalysisExperiment.overfitting(**args)
+FigureExperiment.overfitting(**args)

@@ -2,20 +2,19 @@ from dataclasses import dataclass, field
 from typing import Dict, Any, Tuple
 
 import numpy as np
-import torch
 from scipy.stats import pearsonr
 
 from items.datasets import Deterministic
-from items.indicators.indicator import KernelsHGR
+from items.indicators.indicator import CopulaIndicator
 
 
 @dataclass(frozen=True, eq=False)
-class Oracle(KernelsHGR):
-    """An indicator that knows the exact relationship of a deterministic dataset. The factory class trick is used not to
-    break compatibility with DoE implementation, since an oracle depends on the dataset which is being used."""
+class Oracle(CopulaIndicator):
+    """An indicator that knows the exact relationship of a deterministic dataset. The factory class trick is used not
+    to break compatibility with DoE implementation, since an oracle depends on the dataset which is being used."""
 
     @dataclass(frozen=True, eq=False)
-    class _Instance(KernelsHGR):
+    class _Instance(CopulaIndicator):
         dataset: Deterministic = field(init=True, default=None)
 
         @property
@@ -26,9 +25,9 @@ class Oracle(KernelsHGR):
         def configuration(self) -> Dict[str, Any]:
             return dict(name=self.name, dataset=self.dataset.configuration)
 
-        def _kernels(self, a: np.ndarray, b: np.ndarray, experiment: Any) -> Tuple[np.ndarray, np.ndarray]:
+        def copulas(self, a: np.ndarray, b: np.ndarray, experiment: Any) -> Tuple[np.ndarray, np.ndarray]:
             dataset = getattr(experiment, 'dataset')
-            assert self.dataset == dataset, f'Unexpected dataset {dataset} when computing kernels'
+            assert self.dataset == dataset, f'Unexpected dataset {dataset} when computing copulas'
             return self.dataset.f(a), self.dataset.g(b)
 
         def correlation(self, a: np.ndarray, b: np.ndarray) -> Dict[str, Any]:
@@ -36,14 +35,11 @@ class Oracle(KernelsHGR):
             correlation, _ = pearsonr(dataset.f(a), dataset.g(b))
             return dict(correlation=abs(float(correlation)))
 
-        def __call__(self, a: torch.Tensor, b: torch.Tensor, kwargs: Dict[str, Any]) -> torch.Tensor:
-            raise AssertionError("Oracle indicator does not provide gradients")
-
     # noinspection PyMethodMayBeStatic
     def instance(self, dataset: Deterministic) -> _Instance:
         return Oracle._Instance(dataset=dataset)
 
-    def _kernels(self, a: np.ndarray, b: np.ndarray, experiment: Any) -> Tuple[np.ndarray, np.ndarray]:
+    def copulas(self, a: np.ndarray, b: np.ndarray, experiment: Any) -> Tuple[np.ndarray, np.ndarray]:
         return experiment.dataset.f(a), experiment.dataset.g(b)
 
     def __eq__(self, other: Any) -> bool:
@@ -58,7 +54,4 @@ class Oracle(KernelsHGR):
         raise AssertionError("Oracle is a factory object, please call method '.instance()' to get a valid indicator")
 
     def correlation(self, a: np.ndarray, b: np.ndarray) -> Dict[str, Any]:
-        raise AssertionError("Oracle is a factory object, please call method '.instance()' to get a valid indicator")
-
-    def __call__(self, a: torch.Tensor, b: torch.Tensor, kwargs: Dict[str, Any]) -> torch.Tensor:
         raise AssertionError("Oracle is a factory object, please call method '.instance()' to get a valid indicator")

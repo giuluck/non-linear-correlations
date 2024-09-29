@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from typing import Dict, Any
 
 import numpy as np
-import torch
 from scipy.stats import rankdata
 
 from items.indicators.indicator import Indicator
@@ -21,9 +20,6 @@ class RandomizedDependenceCoefficient(Indicator):
     def correlation(self, a: np.ndarray, b: np.ndarray) -> Dict[str, Any]:
         correlation = rdc(x=a, y=b)
         return dict(correlation=float(correlation))
-
-    def __call__(self, a: torch.Tensor, b: torch.Tensor, kwargs: Dict[str, Any]) -> torch.Tensor:
-        raise AssertionError("RDC indicator does not provide gradients")
 
 
 # The following code is obtained from the official repository of

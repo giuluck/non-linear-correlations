@@ -10,7 +10,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from tqdm import trange
 
-from items.indicators.indicator import KernelsHGR
+from items.indicators.indicator import CopulaIndicator, RegularizerIndicator
 
 DEVICE: torch.device = torch.device(str("cuda:0") if torch.cuda.is_available() else "cpu")
 """The torch device on which to run the adversarial networks."""
@@ -20,7 +20,7 @@ EPSILON: float = 0.000000001
 
 
 @dataclass(frozen=True, eq=False)
-class AdversarialHGR(KernelsHGR):
+class AdversarialHGR(RegularizerIndicator, CopulaIndicator):
     """Torch-based implementation of the HGR-NN indicator."""
 
     epochs: int = field(init=True, default=1000)
@@ -50,13 +50,6 @@ class AdversarialHGR(KernelsHGR):
         correlation = model(yhat=b, s_var=a, nb=epochs)
         return correlation, net_1, net_2
 
-    def _kernels(self, a: np.ndarray, b: np.ndarray, experiment: Any) -> Tuple[np.ndarray, np.ndarray]:
-        a = torch.tensor(a, dtype=torch.float32).reshape((-1, 1))
-        b = torch.tensor(b, dtype=torch.float32).reshape((-1, 1))
-        fa = experiment['f'](a).numpy(force=True).flatten()
-        gb = experiment['g'](b).numpy(force=True).flatten()
-        return fa, gb
-
     def correlation(self, a: np.ndarray, b: np.ndarray) -> Dict[str, Any]:
         # use the default adversarial networks when computing correlations for correlation experiments
         correlation, net_1, net_2 = AdversarialHGR.compute_with_networks(
@@ -69,7 +62,7 @@ class AdversarialHGR(KernelsHGR):
         correlation = correlation.numpy(force=True).item()
         return dict(correlation=float(correlation), f=net_1, g=net_2)
 
-    def __call__(self, a: torch.Tensor, b: torch.Tensor, kwargs: Dict[str, Any]) -> torch.Tensor:
+    def regularizer(self, a: torch.Tensor, b: torch.Tensor, threshold: float, kwargs: Dict[str, Any]) -> torch.Tensor:
         def standardize(t: torch.Tensor) -> torch.Tensor:
             t_std, t_mean = torch.std_mean(t, correction=0)
             return (t - t_mean) / (t_std + EPSILON)
@@ -83,7 +76,15 @@ class AdversarialHGR(KernelsHGR):
         kwargs['epochs'] = self.pretrained_epochs
         f = net_1(a.reshape(-1, 1))
         g = net_2(b.reshape(-1, 1))
-        return torch.mean(standardize(f) * standardize(g))
+        correlation = torch.mean(standardize(f) * standardize(g))
+        return torch.maximum(torch.zeros(1), correlation - threshold)
+
+    def copulas(self, a: np.ndarray, b: np.ndarray, experiment: Any) -> Tuple[np.ndarray, np.ndarray]:
+        a = torch.tensor(a, dtype=torch.float32).reshape((-1, 1))
+        b = torch.tensor(b, dtype=torch.float32).reshape((-1, 1))
+        fa = experiment['f'](a).numpy(force=True).flatten()
+        gb = experiment['g'](b).numpy(force=True).flatten()
+        return fa, gb
 
 
 # The following code is obtained from the official repository of

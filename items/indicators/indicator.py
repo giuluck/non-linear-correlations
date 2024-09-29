@@ -4,6 +4,7 @@ from typing import Tuple, Dict, Any
 
 import numpy as np
 import torch
+from moving_targets.masters.backends import Backend
 
 from items.item import Item
 
@@ -28,27 +29,41 @@ class Indicator(Item):
         the dictionary along with additional results."""
         pass
 
+
+class RegularizerIndicator(Indicator):
+    """Interface for an indicator that allows to impose constraints using a differentiable loss regularizer."""
+
     @abstractmethod
-    def __call__(self, a: torch.Tensor, b: torch.Tensor, kwargs: Dict[str, Any]) -> torch.Tensor:
-        """Computes the correlation between two tensors <a> and <b> in a differentiable way.
-        Additionally, kwargs are used both for additional input parameters and additional output storage."""
+    def regularizer(self, a: torch.Tensor, b: torch.Tensor, threshold: float, kwargs: Dict[str, Any]) -> torch.Tensor:
+        """Computes the correlation between two tensors <a> and <b> in a differentiable way and uses it to build a
+        regularizer (scalar or vector) to limit the correlation under the threshold value. Additionally, kwargs are
+        used both for additional input parameters and additional output storage."""
         pass
 
 
-class KernelsHGR(Indicator):
-    """Interface for an HGR object that also allows to inspect kernels."""
+class DeclarativeIndicator(Indicator):
+    """Interface for an indicator that allows to impose constraints using a declarative method."""
 
     @abstractmethod
-    def _kernels(self, a: np.ndarray, b: np.ndarray, experiment: Any) -> Tuple[np.ndarray, np.ndarray]:
-        """Returns the f(a) and g(b) kernels given the two input vectors and the result of the experiments."""
+    def formulation(self, a: np.ndarray, b: np.ndarray, threshold: float, backend: Backend):
+        """Implements the declarative formulation of the constraint using the given Moving Target's Backend.
+        We assume <a> to be a constant vector, while <b> is an array of backend variables."""
         pass
 
-    def kernels(self, a: np.ndarray, b: np.ndarray, experiment: Any) -> Tuple[float, np.ndarray, np.ndarray]:
-        """Returns the f(a) and g(b) kernels, along with the computed correlation, given the two input vectors and the
-        result of the experiments."""
+
+class CopulaIndicator(Indicator):
+    """Interface for an indicator that allows to inspect and plot the copula transformations."""
+
+    @abstractmethod
+    def copulas(self, a: np.ndarray, b: np.ndarray, experiment: Any) -> Tuple[np.ndarray, np.ndarray]:
+        """Returns the f(a) and g(b) copulas given the two input vectors and the result of the experiment."""
+        pass
+
+    def copulas_hgr(self, a: np.ndarray, b: np.ndarray, experiment: Any) -> float:
+        """Returns the HGR value computed using the copulas retrieved from the result of the experiment."""
         indicator = getattr(experiment, 'indicator')
-        assert self == indicator, f'Unexpected indicator {indicator} when computing kernels'
-        fa, gb = self._kernels(a=a, b=b, experiment=experiment)
+        assert self == indicator, f'Unexpected indicator {indicator} when computing copulas'
+        fa, gb = self.copulas(a=a, b=b, experiment=experiment)
         fa = (fa - fa.mean()) / fa.std(ddof=0)
         gb = (gb - gb.mean()) / gb.std(ddof=0)
-        return float(abs(np.mean(fa * gb))), fa, gb
+        return float(abs(np.mean(fa * gb)))

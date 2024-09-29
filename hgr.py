@@ -46,7 +46,7 @@ datasets = dict(
 )
 
 # build argument parser
-parser = argparse.ArgumentParser(description='Train multiple neural networks using different HGR indicators as penalizers')
+parser = argparse.ArgumentParser(description='Train multiple neural networks using different HGR regularizers')
 parser.add_argument(
     '-f',
     '--folder',
@@ -60,7 +60,7 @@ parser.add_argument(
     type=str,
     nargs='+',
     choices=list(datasets),
-    default=['communities', 'adult', 'census'],
+    default=['census', 'communities', 'adult'],
     help='the datasets on which to run the experiment'
 )
 parser.add_argument(
@@ -69,7 +69,7 @@ parser.add_argument(
     type=str,
     nargs='*',
     default=['kb', 'sk', 'nn'],
-    help='the indicators used as penalties'
+    help='the indicators used as regularizers'
 )
 parser.add_argument(
     '-s',
@@ -104,14 +104,14 @@ parser.add_argument(
     '--threshold',
     type=float,
     nargs='?',
-    help='the penalty threshold used during training (if not passed, uses the dataset default choice)'
+    help='the regularization threshold used during training (if not passed, uses the dataset default choice)'
 )
 parser.add_argument(
     '-a',
     '--alpha',
     type=float,
     nargs='?',
-    help='the alpha value used for the penalty constraint (if not passed, uses automatic tuning)'
+    help='the lagrangian value used for the regularizer constraint (if not passed, uses automatic tuning)'
 )
 parser.add_argument(
     '-p',
@@ -125,7 +125,8 @@ parser.add_argument(
     '--extensions',
     type=str,
     nargs='*',
-    default=['png'],
+    default=['png', 'csv'],
+    choices=['png', 'pdf', 'csv', 'tex'],
     help='the extensions of the files to save'
 )
 parser.add_argument(
@@ -136,10 +137,10 @@ parser.add_argument(
 
 # parse arguments, build experiments, then export the results
 args = parser.parse_args().__dict__
-print("Starting experiment 'history'...")
+print("Starting experiment 'hgr'...")
 for k, v in args.items():
     print('  >', k, '-->', v)
 print()
 args['datasets'] = [datasets[k] for k in args['datasets']]
 args['indicators'] = {k: v for k, v in [indicators(m) for m in args['indicators']]}
-LearningExperiment.history(**args)
+LearningExperiment.hgr(**args)

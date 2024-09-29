@@ -6,7 +6,7 @@ services:
   #  - opens the container without running any specific command (start from /bin/bash as for Dockerfile)
 
   main:
-    image: kbhgr
+    image: correlations
     build: .
     volumes:
       - type: bind
@@ -21,7 +21,7 @@ services:
   #   - run a specific command corresponding to a top-level script (set the folder as 'results' as for Dockerfile)
 
   calibration:
-    image: kbhgr
+    image: correlations
     depends_on: [ main ]
     command: python calibration.py --folder results
     volumes:
@@ -30,7 +30,7 @@ services:
         target: /project/results
 
   causality:
-    image: kbhgr
+    image: correlations
     depends_on: [ main ]
     command: python causality.py --folder results
     volumes:
@@ -38,8 +38,17 @@ services:
         source: ${FOLDER:-results}
         target: /project/results
 
+  copulas:
+    image: correlations
+    depends_on: [ main ]
+    command: python copulas.py --folder results
+    volumes:
+      - type: bind
+        source: ${FOLDER:-results}
+        target: /project/results
+
   correlations:
-    image: kbhgr
+    image: correlations
     depends_on: [ main ]
     command: python correlations.py --folder results
     volumes:
@@ -48,7 +57,7 @@ services:
         target: /project/results
 
   correlations_test:
-    image: kbhgr
+    image: correlations
     depends_on: [ main ]
     command: python correlations.py --test --folder results
     volumes:
@@ -56,8 +65,17 @@ services:
         source: ${FOLDER:-results}
         target: /project/results
 
+  degrees:
+    image: correlations
+    depends_on: [ main ]
+    command: python degrees.py --folder results
+    volumes:
+      - type: bind
+        source: ${FOLDER:-results}
+        target: /project/results
+
   determinism:
-    image: kbhgr
+    image: correlations
     depends_on: [ main ]
     command: python determinism.py --folder results
     volumes:
@@ -66,7 +84,7 @@ services:
         target: /project/results
 
   example:
-    image: kbhgr
+    image: correlations
     depends_on: [ main ]
     command: python example.py --folder results
     volumes:
@@ -74,17 +92,17 @@ services:
         source: ${FOLDER:-results}
         target: /project/results
 
-  history:
-    image: kbhgr
+  hgr:
+    image: correlations
     depends_on: [ main ]
-    command: python history.py --folder results
+    command: python hgr.py --folder results
     volumes:
       - type: bind
         source: ${FOLDER:-results}
         target: /project/results
 
   importance:
-    image: kbhgr
+    image: correlations
     depends_on: [ main ]
     command: python importance.py --folder results
     volumes:
@@ -92,17 +110,8 @@ services:
         source: ${FOLDER:-results}
         target: /project/results
 
-  kernels:
-    image: kbhgr
-    depends_on: [ main ]
-    command: python kernels.py --folder results
-    volumes:
-      - type: bind
-        source: ${FOLDER:-results}
-        target: /project/results
-
   limitations:
-    image: kbhgr
+    image: correlations
     depends_on: [ main ]
     command: python limitations.py --folder results
     volumes:
@@ -111,7 +120,7 @@ services:
         target: /project/results
 
   lstsq:
-    image: kbhgr
+    image: correlations
     depends_on: [ main ]
     command: python lstsq.py --folder results
     volumes:
@@ -120,7 +129,7 @@ services:
         target: /project/results
 
   monotonicity:
-    image: kbhgr
+    image: correlations
     depends_on: [ main ]
     command: python monotonicity.py --folder results
     volumes:
@@ -128,17 +137,8 @@ services:
         source: ${FOLDER:-results}
         target: /project/results
 
-  outputs:
-    image: kbhgr
-    depends_on: [ main ]
-    command: python outputs.py --folder results
-    volumes:
-      - type: bind
-        source: ${FOLDER:-results}
-        target: /project/results
-
   overfitting:
-    image: kbhgr
+    image: correlations
     depends_on: [ main ]
     command: python overfitting.py --folder results
     volumes:

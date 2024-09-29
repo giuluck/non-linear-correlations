@@ -8,12 +8,13 @@ import pytorch_lightning as pl
 import seaborn as sns
 from matplotlib import transforms
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+from scipy.stats import pearsonr
 from tqdm import tqdm
 
 from experiments.experiment import Experiment
 from items.datasets import Dataset, Deterministic
-from items.indicators import DoubleKernelHGR, Indicator, Oracle, KernelsHGR, AdversarialHGR, \
-    RandomizedDependenceCoefficient, SingleKernelHGR
+from items.indicators import DoubleKernelHGR, Indicator, Oracle, AdversarialHGR, \
+    RandomizedDependenceCoefficient, SingleKernelHGR, CopulaIndicator
 
 PALETTE: List[str] = [
     '#000000',
@@ -295,7 +296,7 @@ class CorrelationExperiment(Experiment):
             #  - try to retrieve the test results from the experiment
             #  - for those seeds that have no available test results yet, compute it
             #  - if there is at least one test seed that was computed, update the experiment results
-            elif isinstance(exp.indicator, KernelsHGR):
+            elif isinstance(exp.indicator, CopulaIndicator):
                 test_results = exp['test']
                 to_update = False
                 for s in noise_seeds:
@@ -307,8 +308,9 @@ class CorrelationExperiment(Experiment):
                         dataset_seed = Deterministic(name=dataset, noise=noise, seed=s)
                         x = dataset_seed.excluded(backend='numpy')
                         y = dataset_seed.target(backend='numpy')
-                        hgr = exp.indicator.kernels(a=x, b=y, experiment=exp)[0]
-                        test_results[s] = hgr
+                        fa, gb = exp.indicator.copulas(a=x, b=y, experiment=exp)
+                        hgr = abs(pearsonr(fa, gb)[0])
+                        test_results[s] = float(hgr)
                     results.append({'correlation': hgr, 'test_seed': s, **config})
                 if to_update:
                     exp.update(flush=True, test=test_results)
@@ -394,8 +396,8 @@ class CorrelationExperiment(Experiment):
         plt.close(fig)
 
     @staticmethod
-    def kernels(datasets: Iterable[str],
-                indicators: Dict[str, KernelsHGR],
+    def copulas(datasets: Iterable[str],
+                indicators: Dict[str, CopulaIndicator],
                 noises: Iterable[float] = (1.0,),
                 tests: int = 30,
                 save_time: int = 60,
@@ -413,33 +415,35 @@ class CorrelationExperiment(Experiment):
             indicator=indicators,
             seed=0
         )
-        sns.set(context='poster', style='white', font_scale=1.5)
+        sns.set(context='poster', style='white', font_scale=1.4)
         for key, dataset in datasets.items():
             indicator_experiments = {indicator: experiments[(key, indicator)] for indicator in indicators.keys()}
             # build and plot results
             a = dataset.excluded(backend='numpy')
             b = dataset.target(backend='numpy')
             fig, axes = plt.subplot_mosaic(
-                mosaic=[['data', 'B'], ['A', 'hgr']],
+                mosaic=[['data', 'g(b)'], ['f(a)', 'hgr']],
                 figsize=(16, 16),
                 tight_layout=True
             )
             fa, gb = {'index': a}, {'index': b}
-            # retrieve indicator kernels
+            # retrieve indicator copulas
             for name, indicator in indicators.items():
-                _, fa_current, gb_current = indicator.kernels(a=a, b=b, experiment=indicator_experiments[name])
-                # for all the non-oracle kernels, switch sign to match kernel if necessary
+                fa_current, gb_current = indicator.copulas(a=a, b=b, experiment=indicator_experiments[name])
+                # for all the non-oracle copulas, switch sign to match kernel if necessary
                 if name != 'ORACLE':
                     fa_signs = np.sign(fa_current * fa['ORACLE'])
                     fa_current = np.sign(fa_signs.sum()) * fa_current
+                    fa_current = np.sign(fa_signs.sum()) * fa_current
                     gb_signs = np.sign(gb_current * gb['ORACLE'])
                     gb_current = np.sign(gb_signs.sum()) * gb_current
-                fa[name], gb[name] = fa_current, gb_current
+                fa[name] = (fa_current - fa_current.mean()) / fa_current.std(ddof=0)
+                gb[name] = (gb_current - gb_current.mean()) / gb_current.std(ddof=0)
             fa, gb = pd.DataFrame(fa).set_index('index'), pd.DataFrame(gb).set_index('index')
-            # plot kernels
+            # plot copulas
             handles = None
-            for data, kernel, labels in zip([fa, gb], ['A', 'B'], [('a', 'f(a)'), ('b', 'g(b)')]):
-                ax = axes[kernel]
+            for data, copula, label in zip([fa, gb], ['f(a)', 'g(b)'], ['a', 'b']):
+                ax = axes[copula]
                 sns.lineplot(
                     data=data,
                     sort=True,
@@ -449,17 +453,16 @@ class CorrelationExperiment(Experiment):
                     ax=ax
                 )
                 handles, _ = ax.get_legend_handles_labels()
-                ax.set_title(f'{kernel} Kernel')
-                ax.set_xlabel(labels[0])
-                ax.set_ylabel(labels[1], rotation=0, labelpad=37)
+                ax.set_title(f'Copula {copula[0].upper()}', pad=10)
+                ax.set_xlabel(label)
+                ax.set_ylabel(copula, rotation=0, labelpad=37)
                 ax.set_xticks([])
                 ax.set_yticks([])
                 ax.legend(loc='best')
             # plot data
             ax = axes['data']
-            kwargs = dict() if dataset.noise == 0.0 else dict(alpha=0.4, edgecolor='black', s=30)
-            dataset.plot(ax=ax, color='black', **kwargs)
-            ax.set_title('Data')
+            sns.scatterplot(x=a, y=b, alpha=0.4, color='black', edgecolor='black', s=30, ax=ax)
+            ax.set_title('Data', pad=10)
             ax.set_xlabel('a')
             ax.set_ylabel('b', rotation=0, labelpad=20)
             ax.set_xticks([])
@@ -474,11 +477,10 @@ class CorrelationExperiment(Experiment):
                 dataset_seed = Deterministic(name=dataset.name, noise=dataset.noise, seed=seed)
                 x = dataset_seed.excluded(backend='numpy')
                 y = dataset_seed.target(backend='numpy')
-                correlations += [{
-                    'indicator': name,
-                    'split': 'test',
-                    'hgr': indicator.kernels(a=x, b=y, experiment=indicator_experiments[name])[0]
-                } for name, indicator in indicators.items()]
+                for name, indicator in indicators.items():
+                    fa, gb = indicator.copulas(a=x, b=y, experiment=indicator_experiments[name])
+                    hgr = abs(pearsonr(fa, gb)[0])
+                    correlations.append({'indicator': name, 'split': 'test', 'hgr': float(hgr)})
             ax = axes['hgr']
             sns.barplot(
                 data=pd.DataFrame(correlations),
@@ -500,17 +502,17 @@ class CorrelationExperiment(Experiment):
                     # fake transparency to white
                     color = tuple([0.8 * c + 0.2 for c in color[:3]] + [1])
                     patch.set_facecolor(color)
-            ax.set_title('Correlation')
+            ax.set_title('Correlation', pad=10)
             ax.set_xlabel(None)
             ax.set_ylabel(None)
             # store and plot if necessary
             for extension in extensions:
-                file = os.path.join(folder, f'kernels_{dataset.name}_{dataset.noise}.{extension}')
+                file = os.path.join(folder, f'copulas_{dataset.name}_{dataset.noise}.{extension}')
                 fig.savefig(file, bbox_inches='tight')
             if plot:
                 config = dataset.configuration
                 name = config.pop('name').title()
                 info = ', '.join({f'{key}={value}' for key, value in config.items()})
-                fig.suptitle(f'Kernels for {name}({info})')
+                fig.suptitle(f'Copulas for {name}({info})')
                 fig.show()
             plt.close(fig)

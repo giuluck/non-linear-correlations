@@ -1,16 +1,16 @@
 from dataclasses import dataclass
+from math import pi, sqrt
 from typing import Dict, Any
 
 import numpy as np
 import torch
-from math import pi, sqrt
 
-from items.indicators.indicator import Indicator
+from items.indicators.indicator import Indicator, RegularizerIndicator
 
 
 # noinspection DuplicatedCode
 @dataclass(frozen=True, eq=False)
-class DensityHGR(Indicator):
+class DensityHGR(RegularizerIndicator):
     """Torch-based implementation of the HGR-KDE indicator."""
 
     @property
@@ -24,11 +24,12 @@ class DensityHGR(Indicator):
     def correlation(self, a: np.ndarray, b: np.ndarray) -> Dict[str, Any]:
         a = torch.tensor(a, dtype=torch.float)
         b = torch.tensor(b, dtype=torch.float)
-        correlation = self(a=a, b=b, kwargs=dict()).numpy(force=True).item()
+        correlation = hgr(X=a, Y=b, density=kde).numpy(force=True).item()
         return dict(correlation=float(correlation))
 
-    def __call__(self, a: torch.Tensor, b: torch.Tensor, kwargs: Dict[str, Any]) -> torch.Tensor:
-        return hgr(X=a, Y=b, density=kde)
+    def regularizer(self, a: torch.Tensor, b: torch.Tensor, threshold: float, kwargs: Dict[str, Any]) -> torch.Tensor:
+        correlation = hgr(X=a, Y=b, density=kde)
+        return torch.maximum(torch.zeros(1), correlation - threshold)
 
 
 # noinspection DuplicatedCode

@@ -30,7 +30,7 @@ def indicators(key):
 
 
 # build argument parser
-parser = argparse.ArgumentParser(description='Inspect the HGR kernels on a given dataset')
+parser = argparse.ArgumentParser(description='Inspect the HGR copula transformations on a given dataset')
 parser.add_argument(
     '-f',
     '--folder',
@@ -86,9 +86,9 @@ parser.add_argument(
 
 # parse arguments, build experiments, then export the results
 args = parser.parse_args().__dict__
-print("Starting experiment 'kernels'...")
+print("Starting experiment 'copulas'...")
 for k, v in args.items():
     print('  >', k, '-->', v)
 print()
 args['indicators'] = {k: v for k, v in [indicators(key=mt) for mt in args['indicators']]}
-CorrelationExperiment.kernels(**args)
+CorrelationExperiment.copulas(**args)

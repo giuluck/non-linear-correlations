@@ -1,7 +1,7 @@
 import argparse
 import logging
 
-from experiments import FigureExperiment
+from experiments import ConstraintExperiment
 from items.datasets import Deterministic, Communities, Adult, Census
 
 log = logging.getLogger("lightning_fabric")
@@ -27,7 +27,7 @@ def dataset(key):
 
 
 # build argument parser
-parser = argparse.ArgumentParser(description='Plot the example figure')
+parser = argparse.ArgumentParser(description='Uses the declarative formulations of GeDI to project the training data')
 parser.add_argument(
     '-f',
     '--folder',
@@ -37,24 +37,42 @@ parser.add_argument(
 )
 parser.add_argument(
     '-d',
-    '--dataset',
+    '--datasets',
     type=str,
-    default='circle-0.1',
-    help='the dataset on which to run the experiment'
+    nargs='+',
+    default=['communities', 'adult', 'census'],
+    help='the datasets on which to run the experiment'
 )
 parser.add_argument(
-    '-da',
-    '--degree_a',
+    '-k',
+    '--degrees',
     type=int,
-    default=2,
-    help='the degree for the a variable'
+    nargs='+',
+    default=[1, 2, 3, 4, 5],
+    help='the GeDI degrees to be tested'
 )
 parser.add_argument(
-    '-db',
-    '--degree_b',
+    '-b',
+    '--bins',
     type=int,
-    default=2,
-    help='the degree for the b variable'
+    nargs='+',
+    default=[2, 3, 5, 10],
+    help='the number of bins to be tested for the Binned DIDI metric'
+)
+parser.add_argument(
+    '-t',
+    '--threshold',
+    type=float,
+    default=0.2,
+    help='the threshold up to which to exclude the feature'
+)
+parser.add_argument(
+    '-c',
+    '--constraint',
+    type=str,
+    default='both',
+    choices=['fine', 'coarse', 'both'],
+    help='whether to use fine-grained constraints, coarse-grained constraints, or both'
 )
 parser.add_argument(
     '-e',
@@ -72,9 +90,9 @@ parser.add_argument(
 
 # parse arguments, build experiments, then export the results
 args = parser.parse_args().__dict__
-print("Starting experiment 'example'...")
+print("Starting experiment 'projections'...")
 for k, v in args.items():
     print('  >', k, '-->', v)
 print()
-args['dataset'] = dataset(key=args['dataset'])
-FigureExperiment.example(**args)
+args['datasets'] = [dataset(key=key) for key in args['datasets']]
+ConstraintExperiment.projections(**args)

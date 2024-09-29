@@ -67,7 +67,7 @@ class Dataset(Item):
     @property
     @abstractmethod
     def threshold(self) -> float:
-        """The penalty threshold used when learning a constrained model."""
+        """The regularization threshold used when learning a constrained model."""
         pass
 
     @property

@@ -6,20 +6,18 @@ import numpy as np
 import pandas as pd
 import pytorch_lightning as pl
 import seaborn as sns
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-from scipy.stats import pearsonr
 from tqdm import tqdm
 
 from experiments.experiment import Experiment
-from items.datasets import Dataset, Deterministic
-from items.indicators import DoubleKernelHGR
+from items.datasets import Dataset
+from items.indicators import DoubleKernelHGR, KernelBasedHGR
 
 SEED: int = 0
 """The random seed used in the experiment."""
 
 
 class AnalysisExperiment(Experiment):
-    """An experiment where the correlation between two variables is computed."""
+    """Experiments involving data analysis and computation of correlations between two variables."""
 
     @classmethod
     def alias(cls) -> str:
@@ -39,7 +37,7 @@ class AnalysisExperiment(Experiment):
             features=list(self.features)
         )
 
-    def __init__(self, folder: str, dataset: Dataset, indicator: DoubleKernelHGR, features: Tuple[str, str]):
+    def __init__(self, folder: str, dataset: Dataset, indicator: KernelBasedHGR, features: Tuple[str, str]):
         """
         :param folder:
             The folder where results are stored and loaded.
@@ -54,7 +52,7 @@ class AnalysisExperiment(Experiment):
             The pair of features of the dataset on which to perform the analysis.
         """
         self.dataset: Dataset = dataset
-        self.indicator: DoubleKernelHGR = indicator
+        self.indicator: KernelBasedHGR = indicator
         self.features: Tuple[str, str] = features
         super().__init__(folder=folder)
 
@@ -133,15 +131,15 @@ class AnalysisExperiment(Experiment):
                 figsize=(31, 12),
                 tight_layout=True
             )
-            # plot kernels
+            # plot copulas
             for key, title, selector in [('dir.', 'Direct', 1), ('inv.', 'Inverse', -1)]:
                 exp = experiments[(key,)]
-                kernels = exp.indicator.kernels(a=x, b=y, experiment=exp)
+                copulas = exp.indicator.copulas(a=x, b=y, experiment=exp)
                 f1, f2 = exp.features[::selector]
                 ax = axes[key]
                 # standardize inputs and outputs to compute the pearson correlation and have comparable data
                 inp = (dataset[f2] - dataset[f2].mean()) / dataset[f2].std(ddof=0)
-                out = (kernels[selector] - kernels[selector].mean()) / kernels[selector].std(ddof=0)
+                out = (copulas[selector] - copulas[selector].mean()) / copulas[selector].std(ddof=0)
                 pearson = np.mean(inp * out)
                 sns.scatterplot(
                     x=inp,
@@ -196,154 +194,3 @@ class AnalysisExperiment(Experiment):
             if plot:
                 fig.suptitle(f"Causal Analysis for {dataset.name.title()} dataset")
                 fig.show()
-
-    @staticmethod
-    def example(dataset: Dataset,
-                degree_a: int = 2,
-                degree_b: int = 2,
-                folder: str = 'results',
-                extensions: Iterable[str] = ('png',),
-                plot: bool = False):
-        # compute correlations and kernels
-        a, b = dataset.excluded(backend='numpy'), dataset.target(backend='numpy')
-        result = DoubleKernelHGR(degree_a=degree_a, degree_b=degree_b).correlation(a, b)
-        fa = DoubleKernelHGR.kernel(a, degree=degree_a, use_torch=False) @ result['alpha']
-        gb = DoubleKernelHGR.kernel(b, degree=degree_b, use_torch=False) @ result['beta']
-        # build canvas
-        sns.set(context='poster', style='white', font_scale=1.3)
-        fig = plt.figure(figsize=(20, 10))
-        ax = fig.gca()
-        ax.axis('off')
-        ax.set_xlim((0, 1))
-        ax.set_ylim((0, 1))
-        # build axes
-        axes = {
-            'data': ('center left', 'a', 'b', 14, f'Correlation: {abs(pearsonr(a, b)[0]):.3f}'),
-            'fa': ('upper center', 'a', 'f(a)', 30, f"$\\alpha$ = {np.round(result['alpha'], 2)}"),
-            'gb': ('lower center', 'b', 'g(b)', 34, f"$\\beta$ = {np.round(result['beta'], 2)}"),
-            'proj': ('center right', 'f(a)', 'g(b)', 34, f"Correlation: {result['correlation']:.3f}")
-        }
-        for key, (loc, xl, yl, lp, tl) in axes.items():
-            x = inset_axes(ax, width='20%', height='40%', loc=loc)
-            x.set_title(tl, pad=12)
-            x.set_xlabel(xl, labelpad=8)
-            x.set_ylabel(yl, rotation=0, labelpad=lp)
-            x.set_xticks([])
-            x.set_yticks([])
-            axes[key] = x
-        # build arrows
-        ax.arrow(0.23, 0.57, 0.14, 0.1, color='black', linewidth=2, head_width=0.015)
-        ax.arrow(0.23, 0.43, 0.14, -0.1, color='black', linewidth=2, head_width=0.015)
-        ax.arrow(0.62, 0.70, 0.14, -0.1, color='black', linewidth=2, head_width=0.015)
-        ax.arrow(0.62, 0.30, 0.14, 0.1, color='black', linewidth=2, head_width=0.015)
-        # plot data, kernels, and projections
-        sns.regplot(
-            x=a,
-            y=b,
-            color='red',
-            line_kws=dict(linewidth=1),
-            scatter_kws=dict(color='black', edgecolor='black', s=10, alpha=0.6),
-            ax=axes['data']
-        )
-        sns.lineplot(x=a, y=fa, sort=True, linewidth=2, color='black', ax=axes['fa'])
-        sns.lineplot(x=b, y=gb, sort=True, linewidth=2, color='black', ax=axes['gb'])
-        sns.regplot(
-            x=fa,
-            y=gb,
-            color='red',
-            line_kws=dict(linewidth=1),
-            scatter_kws=dict(color='black', edgecolor='black', s=10, alpha=0.6),
-            ax=axes['proj']
-        )
-        # store and plot if necessary
-        for extension in extensions:
-            os.makedirs(folder, exist_ok=True)
-            file = os.path.join(folder, f'example.{extension}')
-            fig.savefig(file, bbox_inches='tight')
-        if plot:
-            fig.show()
-
-    @staticmethod
-    def overfitting(folder: str = 'results', extensions: Iterable[str] = ('png',), plot: bool = False):
-        # sample data
-        rng = np.random.default_rng(0)
-        x = np.arange(15)
-        y = rng.random(size=len(x))
-        # plot data
-        sns.set(context='poster', style='whitegrid', font_scale=1.8)
-        fig = plt.figure(figsize=(20, 8), tight_layout=True)
-        ax = fig.gca()
-        sns.scatterplot(x=x, y=y, color='black', s=500, linewidth=1, zorder=2, label='Data Points', ax=ax)
-        # sns.lineplot(x=x, y=x, color='blue', linestyle='--', linewidth=2, zorder=1, label='Expected f(a)', ax=ax)
-        sns.lineplot(x=x, y=y, color='red', linewidth=2, zorder=1, label='Transformation f(a)', ax=ax)
-        ax.set_xlabel('a')
-        ax.set_ylabel('b', rotation=0, labelpad=20)
-        ax.set_xticks(x, labels=[''] * len(x))
-        ax.set_yticks([0.0, 0.5, 1.0], labels=['', '', ''])
-        ax.set_xlim([-0.15, 14.15])
-        ax.set_ylim([-0.03, 1.03])
-        # store and plot if necessary
-        for extension in extensions:
-            os.makedirs(folder, exist_ok=True)
-            file = os.path.join(folder, f'overfitting.{extension}')
-            fig.savefig(file, bbox_inches='tight')
-        if plot:
-            fig.show()
-
-    @staticmethod
-    def limitations(folder: str = 'results', extensions: Iterable[str] = ('png',), plot: bool = False):
-        # sample data
-        sns.set(context='poster', style='whitegrid', font_scale=2)
-        space = np.linspace(0, 1, 300)
-        rng = np.random.default_rng(0)
-        # limitations to non-functional dependencies
-        x = np.concat([space, space])
-        y = np.concat([space, -space]) + rng.normal(0, 0.1, size=len(x))
-        fig_functional = plt.figure(figsize=(15, 9), tight_layout=True)
-        ax = fig_functional.gca()
-        sns.regplot(
-            x=x,
-            y=y,
-            color='red',
-            scatter=True,
-            line_kws=dict(linewidth=5, label='Average'),
-            scatter_kws=dict(color='black', edgecolor='white', s=300),
-            label='Data Points',
-            ax=ax
-        )
-        ax.legend(loc='upper left')
-        ax.set_xlabel('a')
-        ax.set_ylabel('b', rotation=0, labelpad=20)
-        ax.set_xticklabels([])
-        ax.set_yticklabels([])
-        # limitations to non-functional dependencies
-        x = space
-        y1 = space + rng.normal(0, 0.05, size=len(x))
-        y2 = (space + 2 * space.mean()) / 3 + rng.normal(0, 0.03, size=len(x))
-        fig_scaled = plt.figure(figsize=(15, 9), tight_layout=True)
-        ax = fig_scaled.gca()
-        for y, text, color in [(y1, 'Original', 'black'), (y2, 'Scaled', 'grey')]:
-            sns.scatterplot(
-                x=x,
-                y=y,
-                color=color,
-                edgecolor='white',
-                s=300,
-                label=f'{text} Data',
-                ax=ax
-            )
-        ax.legend(loc='upper left')
-        ax.set_xlabel('a')
-        ax.set_ylabel('b', rotation=0, labelpad=20)
-        ax.set_xticklabels([])
-        ax.set_yticklabels([])
-        # store and plot if necessary
-        for extension in extensions:
-            os.makedirs(folder, exist_ok=True)
-            file = os.path.join(folder, f'limitations_functional.{extension}')
-            fig_functional.savefig(file, bbox_inches='tight')
-            file = os.path.join(folder, f'limitations_scaled.{extension}')
-            fig_scaled.savefig(file, bbox_inches='tight')
-        if plot:
-            fig_functional.show()
-            fig_scaled.show()
