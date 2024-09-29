@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Any, Iterable, Literal, Optional
+from typing import Dict, Any, Iterable, Optional, List
 
 import numpy as np
 import pandas as pd
@@ -10,6 +10,9 @@ from experiments.experiment import Experiment
 from items.datasets import Dataset
 from items.indicators import DeclarativeIndicator, KernelBasedGeDI, Indicator
 from items.learning import DIDI, DeclarativeMaster
+
+PALETTE: List[np.ndarray] = [0.3 + 0.7 * np.array(color) for color in sns.color_palette('tab10')]
+"""The color palette for plotting data."""
 
 
 class ConstraintExperiment(Experiment):
@@ -79,23 +82,17 @@ class ConstraintExperiment(Experiment):
                     degrees: Iterable[int] = (1, 2, 3, 4, 5),
                     bins: Iterable[int] = (2, 3, 5, 10),
                     threshold: float = 0.2,
-                    constraint: Literal['fine', 'coarse', 'both'] = 'both',
                     folder: str = 'results',
                     extensions: Iterable[str] = ('png',),
                     plot: bool = False):
         # check for fine and coarse grained formulations
-        fine_grained = []
-        if constraint in ['fine', 'both']:
-            fine_grained.append(True)
-        if constraint in ['coarse', 'both']:
-            fine_grained.append(False)
         # run experiments using GeDI(a, b; 1) as relative indicator
         experiments = ConstraintExperiment.execute(
             folder=folder,
             verbose=False,
             save_time=None,
             dataset={dataset.name: dataset for dataset in datasets},
-            indicator={(dg, fg): KernelBasedGeDI(degree=dg, fine_grained=fg) for dg in degrees for fg in fine_grained},
+            indicator={(dg, fg): KernelBasedGeDI(degree=dg, fine_grained=fg) for dg in degrees for fg in [True, False]},
             threshold=threshold,
             relative=KernelBasedGeDI(degree=1)
         )
@@ -110,37 +107,70 @@ class ConstraintExperiment(Experiment):
                 metric = DIDI(excluded=d.excluded_index, classification=d.classification, bins=b)
                 results.append({
                     'Dataset': ds,
-                    'Fine-Grained': fg,
+                    'Constraint': 'Fine-Grained' if fg else 'Coarse-Grained',
                     'Kernel Degree': dg,
                     'Bins': b,
+                    'Time (s)': experiment.elapsed_time,
                     '% DIDI': metric(x=x, y=None, p=p) / metric(x=x, y=None, p=y)
                 })
         results = pd.DataFrame(results)
         # plot results
-        sns.set(context='poster', style='whitegrid', font_scale=1.8)
+        sns.set(context='poster', style='whitegrid', font_scale=2.0)
         for ds in datasets:
-            for fg in fine_grained:
-                group = results[np.logical_and(results['Dataset'] == ds.name, results['Fine-Grained'] == fg)]
-                fig = plt.figure(figsize=(14, 14), tight_layout=True)
-                ax = fig.gca()
+            group = results[results['Dataset'] == ds.name].copy()
+            fig, axes = plt.subplot_mosaic(
+                mosaic=[['Coarse-Grained', 'Fine-Grained', 'Times']],
+                figsize=(38, 14),
+                tight_layout=True
+            )
+            ax = axes['Times']
+            sns.barplot(
+                data=group,
+                x='Kernel Degree',
+                y='Time (s)',
+                order=degrees,
+                hue='Constraint',
+                hue_order=['Coarse-Grained', 'Fine-Grained'],
+                errorbar=None,
+                palette=['#CCC', '#CCC'],
+                edgecolor='black',
+                ax=ax
+            )
+            hatches = {'Coarse-Grained': '', 'Fine-Grained': '/'}
+            handles, labels = ax.get_legend_handles_labels()
+            for bars, hatch in zip(ax.containers, hatches.values()):
+                for bar, color in zip(bars, PALETTE[:len(list(degrees))]):
+                    bar.set_facecolor(color)
+                    bar.set_hatch(hatch)
+            for handle, label in zip(handles, labels):
+                handle.set_hatch(hatches[label])
+            ax.legend(loc='upper left', handles=handles, labels=labels, title='Constraint')
+            ax.set_yticks(ax.get_yticks(), labels=[f'{t:.1f}' for t in ax.get_yticks()])
+            ax.set_title(f'Execution Times', pad=15, fontsize=50)
+            for cst in ['Coarse-Grained', 'Fine-Grained']:
+                subgroup = group[group['Constraint'] == cst]
                 sns.barplot(
-                    data=group,
+                    data=subgroup,
                     x='Bins',
                     y='% DIDI',
                     order=bins,
                     hue='Kernel Degree',
                     hue_order=degrees,
                     errorbar=None,
-                    palette='tab10',
-                    ax=ax
+                    palette=PALETTE[:len(list(degrees))],
+                    edgecolor='black',
+                    hatch=hatches[cst],
+                    ax=axes[cst]
                 )
-                ax.set_ylim((0, 1))
-                # store, print, and plot if necessary
-                fg = 'fine' if fg else 'coarse'
-                for extension in extensions:
-                    file = os.path.join(folder, f'projections_{ds.name}_{fg}.{extension}')
-                    fig.savefig(file, bbox_inches='tight')
-                if plot:
-                    fig.suptitle(f'{ds.name.title()} {fg.title()}-Grained')
-                    fig.show()
-                plt.close(fig)
+                axes[cst].set_ylim((0, 1))
+                axes[cst].set_title(f'{cst} Constraint', pad=15, fontsize=50)
+                axes[cst].legend(loc='upper left', title='Kernel Degree')
+            # store, print, and plot if necessary
+            for extension in extensions:
+                name = f'projections_{ds.name}.{extension}'
+                file = os.path.join(folder, name)
+                fig.savefig(file, bbox_inches='tight')
+            if plot:
+                fig.suptitle(f'{ds.name.title()}')
+                fig.show()
+            plt.close(fig)

@@ -67,14 +67,6 @@ parser.add_argument(
     help='the threshold up to which to exclude the feature'
 )
 parser.add_argument(
-    '-c',
-    '--constraint',
-    type=str,
-    default='both',
-    choices=['fine', 'coarse', 'both'],
-    help='whether to use fine-grained constraints, coarse-grained constraints, or both'
-)
-parser.add_argument(
     '-e',
     '--extensions',
     type=str,
