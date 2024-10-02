@@ -8,7 +8,9 @@ import pandas as pd
 from items.datasets.dataset import Dataset
 
 
-class Deterministic(Dataset):
+class Synthetic(Dataset):
+    """A synthetic dataset generated from a known deterministic function with additive gaussian noise."""
+
     @dataclass(frozen=True)
     class Function:
         """Dataclass representing a deterministic function."""
@@ -90,10 +92,10 @@ class Deterministic(Dataset):
         :param size:
             The size of the dataset.
         """
-        function = Deterministic.FUNCTIONS.get(name)
+        function = Synthetic.FUNCTIONS.get(name)
         if function is None:
-            raise KeyError(f'"{name}" is not a valid function, choose one in {list(Deterministic.FUNCTIONS.keys())}')
-        self._function: Deterministic.Function = function
+            raise KeyError(f'"{name}" is not a valid function, choose one in {list(Synthetic.FUNCTIONS.keys())}')
+        self._function: Synthetic.Function = function
         self._seed: int = seed
         self._noise: float = noise
         self._size: int = size
@@ -165,18 +167,6 @@ class Deterministic(Dataset):
         return False
 
     @property
-    def units(self) -> List[int]:
-        return []
-
-    @property
-    def batch(self) -> int:
-        return -1
-
-    @property
-    def threshold(self) -> float:
-        return 0.0
-
-    @property
     def excluded_name(self) -> str:
         return 'x'
 
@@ -199,4 +189,4 @@ class Deterministic(Dataset):
             else:
                 ax.plot(x, y, **kwargs)
         else:
-            super(Deterministic, self).plot(ax=ax, **kwargs)
+            super(Synthetic, self).plot(ax=ax, **kwargs)

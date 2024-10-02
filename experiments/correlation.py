@@ -12,7 +12,7 @@ from scipy.stats import pearsonr
 from tqdm import tqdm
 
 from experiments.experiment import Experiment
-from items.datasets import Dataset, Deterministic
+from items.datasets import Dataset, Synthetic
 from items.indicators import DoubleKernelHGR, Indicator, Oracle, AdversarialHGR, \
     RandomizedDependenceCoefficient, SingleKernelHGR, CopulaIndicator
 
@@ -69,7 +69,7 @@ class CorrelationExperiment(Experiment):
         """
         # build the oracle instance with the respective dataset
         if isinstance(indicator, Oracle):
-            assert isinstance(dataset, Deterministic), "Cannot build an Oracle instance of a non-deterministic dataset"
+            assert isinstance(dataset, Synthetic), "Cannot build an Oracle instance of a non-deterministic dataset"
             indicator = indicator.instance(dataset=dataset)
         self.dataset: Dataset = dataset
         self.indicator: Indicator = indicator
@@ -144,7 +144,7 @@ class CorrelationExperiment(Experiment):
             folder=folder,
             verbose=False,
             save_time=None,
-            dataset={(dataset, seed, size): Deterministic(name=dataset, noise=noise, seed=seed, size=size)
+            dataset={(dataset, seed, size): Synthetic(name=dataset, noise=noise, seed=seed, size=size)
                      for dataset in datasets for seed in seeds for size in sizes},
             indicator=indicators,
             seed=0
@@ -177,7 +177,7 @@ class CorrelationExperiment(Experiment):
             ax.set_xscale('log')
             ax.set_yscale('log')
             sub_ax = inset_axes(ax, width='22%', height='40%', loc='upper left')
-            Deterministic(name=dataset, noise=noise, seed=0).plot(ax=sub_ax, color='black', alpha=0.5, s=10)
+            Synthetic(name=dataset, noise=noise, seed=0).plot(ax=sub_ax, color='black', alpha=0.5, s=10)
             sub_ax.set_xticks([])
             sub_ax.set_yticks([])
         # store and plot if necessary
@@ -200,7 +200,7 @@ class CorrelationExperiment(Experiment):
         experiments = CorrelationExperiment.execute(
             folder=folder,
             verbose=False,
-            dataset={noise: Deterministic(name=dataset, noise=noise, seed=0) for noise in noises},
+            dataset={noise: Synthetic(name=dataset, noise=noise, seed=0) for noise in noises},
             indicator=indicators,
             seed=list(seeds)
         )
@@ -240,7 +240,7 @@ class CorrelationExperiment(Experiment):
             ax.set_ylabel('Correlation')
             ax.set_ylim((-0.1, 1.1))
             sub_ax = inset_axes(ax, width='30%', height='30%', loc='upper right')
-            Deterministic(name=dataset, noise=0.0, seed=0).plot(ax=sub_ax, linewidth=2, color='black')
+            Synthetic(name=dataset, noise=0.0, seed=0).plot(ax=sub_ax, linewidth=2, color='black')
             sub_ax.set_xticks([])
             sub_ax.set_yticks([])
             for extension in extensions:
@@ -272,7 +272,7 @@ class CorrelationExperiment(Experiment):
             verbose=False,
             save_time=save_time,
             dataset={
-                (name, noise, seed): Deterministic(name=name, noise=noise, seed=seed)
+                (name, noise, seed): Synthetic(name=name, noise=noise, seed=seed)
                 for name in datasets for noise in noises for seed in noise_seeds
             },
             indicator=indicators,
@@ -305,7 +305,7 @@ class CorrelationExperiment(Experiment):
                     hgr = test_results.get(s)
                     if hgr is None:
                         to_update = True
-                        dataset_seed = Deterministic(name=dataset, noise=noise, seed=s)
+                        dataset_seed = Synthetic(name=dataset, noise=noise, seed=s)
                         x = dataset_seed.excluded(backend='numpy')
                         y = dataset_seed.target(backend='numpy')
                         fa, gb = exp.indicator.copulas(a=x, b=y, experiment=exp)
@@ -348,7 +348,7 @@ class CorrelationExperiment(Experiment):
             ax.set_ylim((-0.1, 1.1))
             # plot the original data without noise
             sub_ax = inset_axes(ax, width='30%', height='30%', loc='upper right')
-            Deterministic(name=name, noise=0.0, seed=0).plot(ax=sub_ax, linewidth=2, color='black')
+            Synthetic(name=name, noise=0.0, seed=0).plot(ax=sub_ax, linewidth=2, color='black')
             sub_ax.set_xticks([])
             sub_ax.set_yticks([])
         # if train, plot times in the first subplot
@@ -406,7 +406,7 @@ class CorrelationExperiment(Experiment):
                 plot: bool = False):
         # run experiments
         indicators = {'ORACLE': Oracle(), **indicators}
-        datasets = {(ds, ns): Deterministic(name=ds, noise=ns, seed=0) for ds in datasets for ns in noises}
+        datasets = {(ds, ns): Synthetic(name=ds, noise=ns, seed=0) for ds in datasets for ns in noises}
         experiments = CorrelationExperiment.execute(
             folder=folder,
             verbose=False,
@@ -474,7 +474,7 @@ class CorrelationExperiment(Experiment):
                 'hgr': indicator_experiments[indicator]['correlation']
             } for indicator in indicators.keys()]
             for seed in np.arange(tests) + 1:
-                dataset_seed = Deterministic(name=dataset.name, noise=dataset.noise, seed=seed)
+                dataset_seed = Synthetic(name=dataset.name, noise=dataset.noise, seed=seed)
                 x = dataset_seed.excluded(backend='numpy')
                 y = dataset_seed.target(backend='numpy')
                 for name, indicator in indicators.items():

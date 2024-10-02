@@ -9,7 +9,6 @@ from items.datasets import Communities, Adult, Census
 from items.indicators import DoubleKernelHGR, SingleKernelHGR, AdversarialHGR, DensityHGR
 
 # noinspection DuplicatedCode
-os.environ['WANDB_SILENT'] = 'true'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 warnings.filterwarnings("ignore", ".*does not have many workers.*")
 for name in ["lightning_fabric", "pytorch_lightning.utilities.rank_zero", "pytorch_lightning.accelerators.cuda"]:
@@ -72,53 +71,11 @@ parser.add_argument(
     help='the indicators used as regularizers'
 )
 parser.add_argument(
-    '-s',
-    '--steps',
-    type=int,
-    default=500,
-    help='the number of steps to run for each network'
-)
-parser.add_argument(
     '-k',
     '--folds',
     type=int,
     default=5,
     help='the number of folds to be used for cross-validation'
-)
-parser.add_argument(
-    '-u',
-    '--units',
-    type=int,
-    nargs='*',
-    help='the hidden units of the neural networks (if not passed, uses the dataset default choice)'
-)
-parser.add_argument(
-    '-b',
-    '--batch',
-    type=int,
-    nargs='?',
-    help='the batch size used during training (if not passed, uses the dataset default choice)'
-)
-parser.add_argument(
-    '-t',
-    '--threshold',
-    type=float,
-    nargs='?',
-    help='the regularization threshold used during training (if not passed, uses the dataset default choice)'
-)
-parser.add_argument(
-    '-a',
-    '--alpha',
-    type=float,
-    nargs='?',
-    help='the lagrangian value used for the regularizer constraint (if not passed, uses automatic tuning)'
-)
-parser.add_argument(
-    '-p',
-    '--wandb-project',
-    type=str,
-    nargs='?',
-    help='the name of the Weights & Biases project for logging, or None for no logging'
 )
 parser.add_argument(
     '-e',

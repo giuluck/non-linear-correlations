@@ -4,7 +4,7 @@ from typing import Dict, Any, Tuple
 import numpy as np
 from scipy.stats import pearsonr
 
-from items.datasets import Deterministic
+from items.datasets import Synthetic
 from items.indicators.indicator import CopulaIndicator
 
 
@@ -15,7 +15,7 @@ class Oracle(CopulaIndicator):
 
     @dataclass(frozen=True, eq=False)
     class _Instance(CopulaIndicator):
-        dataset: Deterministic = field(init=True, default=None)
+        dataset: Synthetic = field(init=True, default=None)
 
         @property
         def name(self) -> str:
@@ -36,7 +36,7 @@ class Oracle(CopulaIndicator):
             return dict(correlation=abs(float(correlation)))
 
     # noinspection PyMethodMayBeStatic
-    def instance(self, dataset: Deterministic) -> _Instance:
+    def instance(self, dataset: Synthetic) -> _Instance:
         return Oracle._Instance(dataset=dataset)
 
     def copulas(self, a: np.ndarray, b: np.ndarray, experiment: Any) -> Tuple[np.ndarray, np.ndarray]:

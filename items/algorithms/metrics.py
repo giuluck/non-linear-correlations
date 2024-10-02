@@ -48,8 +48,8 @@ class Loss(Metric):
         return float(self._metric(y, p))
 
 
-class Accuracy(Metric):
-    """Accuracy metric."""
+class Score(Metric):
+    """Task score metric."""
 
     def __init__(self, classification: bool, name: Optional[str] = None):
         """
@@ -66,7 +66,7 @@ class Accuracy(Metric):
             metric = r2_score
             def_name = 'R2'
         self._metric: Callable = metric
-        super(Accuracy, self).__init__(name=def_name if name is None else name)
+        super(Score, self).__init__(name=def_name if name is None else name)
 
     def __call__(self, x: Optional[np.ndarray], y: Optional[np.ndarray], p: np.ndarray) -> float:
         return float(self._metric(y, p))
@@ -131,6 +131,8 @@ class Correlation(Metric):
 
 
 class DIDI(Metric):
+    """Disparate Impact metric."""
+
     def __init__(self, excluded: int, classification: bool, bins: Optional[int] = None, name: Optional[str] = None):
         """
         :param excluded:
@@ -164,4 +166,4 @@ class DIDI(Metric):
         for group in np.unique(x):
             didi += abs(avg - p[x == group].mean())
         # return the DIDI
-        return didi
+        return float(didi)

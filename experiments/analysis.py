@@ -132,14 +132,14 @@ class AnalysisExperiment(Experiment):
                 tight_layout=True
             )
             # plot copulas
-            for key, title, selector in [('dir.', 'Direct', 1), ('inv.', 'Inverse', -1)]:
+            for key, title, copula in [('dir.', 'Direct', 0), ('inv.', 'Inverse', 1)]:
                 exp = experiments[(key,)]
                 copulas = exp.indicator.copulas(a=x, b=y, experiment=exp)
-                f1, f2 = exp.features[::selector]
+                f1, f2 = exp.features if title == 'Direct' else exp.features[::-1]
                 ax = axes[key]
                 # standardize inputs and outputs to compute the pearson correlation and have comparable data
                 inp = (dataset[f2] - dataset[f2].mean()) / dataset[f2].std(ddof=0)
-                out = (copulas[selector] - copulas[selector].mean()) / copulas[selector].std(ddof=0)
+                out = (copulas[copula] - copulas[copula].mean()) / copulas[copula].std(ddof=0)
                 pearson = np.mean(inp * out)
                 sns.scatterplot(
                     x=inp,

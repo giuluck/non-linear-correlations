@@ -60,7 +60,7 @@ class AdversarialHGR(RegularizerIndicator, CopulaIndicator):
             epochs=self.epochs
         )
         correlation = correlation.numpy(force=True).item()
-        return dict(correlation=float(correlation), f=net_1, g=net_2)
+        return dict(correlation=float(abs(correlation)), f=net_1, g=net_2)
 
     def regularizer(self, a: torch.Tensor, b: torch.Tensor, threshold: float, kwargs: Dict[str, Any]) -> torch.Tensor:
         def standardize(t: torch.Tensor) -> torch.Tensor:
@@ -76,7 +76,7 @@ class AdversarialHGR(RegularizerIndicator, CopulaIndicator):
         kwargs['epochs'] = self.pretrained_epochs
         f = net_1(a.reshape(-1, 1))
         g = net_2(b.reshape(-1, 1))
-        correlation = torch.mean(standardize(f) * standardize(g))
+        correlation = torch.abs(torch.mean(standardize(f) * standardize(g)))
         return torch.maximum(torch.zeros(1), correlation - threshold)
 
     def copulas(self, a: np.ndarray, b: np.ndarray, experiment: Any) -> Tuple[np.ndarray, np.ndarray]:

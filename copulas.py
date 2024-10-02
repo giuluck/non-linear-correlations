@@ -3,7 +3,7 @@ import logging
 import re
 
 from experiments import CorrelationExperiment
-from items.datasets import Deterministic
+from items.datasets import Synthetic
 from items.indicators import AdversarialHGR, DoubleKernelHGR, SingleKernelHGR
 
 log = logging.getLogger("lightning_fabric")
@@ -43,7 +43,7 @@ parser.add_argument(
     '--datasets',
     type=str,
     nargs='+',
-    choices=list(Deterministic.FUNCTIONS.keys()),
+    choices=list(Synthetic.FUNCTIONS.keys()),
     default=['circle'],
     help='the dataset on which to run the experiment'
 )

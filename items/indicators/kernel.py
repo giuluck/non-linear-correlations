@@ -17,9 +17,6 @@ DEGREE: int = 5
 TOL: float = 1e-2
 """The tolerance used when checking for linear dependencies and when solving the optimization problem."""
 
-EPS: float = 0.0
-"""The tolerance used to account for null standard deviation."""
-
 MAX_SIZE: int = 25000
 """The maximal size after which using least squares regression becomes inconvenient."""
 
@@ -180,6 +177,11 @@ class KernelBasedHGR(KernelBasedIndicator):
                        b0: Optional[np.ndarray],
                        lstsq: bool) -> Tuple[float, List[float], List[float]]:
         """Computes HGR using numpy as backend and returns the correlation along with alpha and beta."""
+        # handle degenerate case of constant vectors
+        std_a = a.std(ddof=0)
+        std_b = b.std(ddof=0)
+        if std_a == 0.0 or std_b == 0.0:
+            return 0.0, [np.nan] * degree_a, [np.nan] * degree_b
         # build the kernel matrices
         f = KernelBasedHGR.kernel(a, degree=degree_a, use_torch=False)
         g = KernelBasedHGR.kernel(b, degree=degree_b, use_torch=False)
@@ -190,20 +192,18 @@ class KernelBasedHGR(KernelBasedIndicator):
         if degree_a == 1 and degree_b == 1:
             alpha, beta = np.ones(1), np.ones(1)
         elif degree_a == 1 and lstsq:
-            std = a.std(ddof=0) + EPS
-            alpha = np.ones(1) / std
-            beta, _, _, _ = np.linalg.lstsq(g, f[:, 0] / std, rcond=None)
+            alpha = np.ones(1) / std_a
+            beta, _, _, _ = np.linalg.lstsq(g, f[:, 0] / std_a, rcond=None)
         elif degree_b == 1 and lstsq:
-            std = b.std(ddof=0) + EPS
-            beta = np.ones(1) / std
-            alpha, _, _, _ = np.linalg.lstsq(f, g[:, 0] / std, rcond=None)
+            beta = np.ones(1) / std_b
+            alpha, _, _, _ = np.linalg.lstsq(f, g[:, 0] / std_b, rcond=None)
         else:
             alpha, beta = KernelBasedHGR._higher_order_coefficients(f=f, g=g, a0=a0, b0=b0)
         fa = f @ alpha
         gb = g @ beta
         correlation, _ = pearsonr(fa, gb)
-        alpha = alpha / (fa.std(ddof=0) + EPS)
-        beta = beta / (gb.std(ddof=0) + EPS)
+        alpha = alpha / fa.std(ddof=0)
+        beta = beta / gb.std(ddof=0)
         return abs(float(correlation)), [float(a) for a in alpha], [float(b) for b in beta]
 
     @staticmethod
@@ -218,8 +218,13 @@ class KernelBasedHGR(KernelBasedIndicator):
 
         def standardize(t: torch.Tensor) -> torch.Tensor:
             t_std, t_mean = torch.std_mean(t, correction=0)
-            return (t - t_mean) / (t_std + EPS)
+            return (t - t_mean) / t_std
 
+        # handle degenerate case of constant vectors
+        std_a = a.std(correction=0)
+        std_b = b.std(correction=0)
+        if std_a == 0.0 or std_b == 0.0:
+            return torch.tensor(0.0), torch.ones(degree_a) * np.nan, torch.ones(degree_b) * np.nan
         # build the kernel matrices
         f = KernelBasedHGR.kernel(a, degree=degree_a, use_torch=True)
         g = KernelBasedHGR.kernel(b, degree=degree_b, use_torch=True)
@@ -369,7 +374,7 @@ class SingleKernelHGR(KernelBasedHGR):
         # compute single-kernel correlations
         # (x0 is not used when either one degree is 1, so None is always passed)
         lstsq = (len(a) < MAX_SIZE) if self.lstsq is None else self.lstsq
-        hgr_a, alpha_a, beta_a = KernelBasedHGR._compute_torch(
+        hgr_a, _, _ = KernelBasedHGR._compute_torch(
             a=a,
             b=b,
             degree_a=self.degree,
@@ -378,7 +383,7 @@ class SingleKernelHGR(KernelBasedHGR):
             b0=None,
             lstsq=lstsq
         )
-        hgr_b, alpha_b, beta_b = KernelBasedHGR._compute_torch(
+        hgr_b, _, _ = KernelBasedHGR._compute_torch(
             a=a,
             b=b,
             degree_a=1,
@@ -411,29 +416,28 @@ class KernelBasedGeDI(KernelBasedIndicator, DeclarativeIndicator):
     def correlation(self, a: np.ndarray, b: np.ndarray) -> Dict[str, Any]:
         f = self.kernel(v=a, degree=self.degree, use_torch=False)
         alpha, _, _, _ = np.linalg.lstsq(f, b - b.mean(), rcond=None)
-        gedi = np.abs(alpha * f.std(ddof=0, axis=0)).sum() / a.std(ddof=0)
+        gedi = np.std(f @ alpha, ddof=0) / a.std(ddof=0)
         return dict(correlation=float(gedi), alpha=[float(a) for a in alpha])
 
     def regularizer(self, a: torch.Tensor, b: torch.Tensor, threshold: float, kwargs: Dict[str, Any]) -> torch.Tensor:
         # use the least-square operator to compute the \tilde{alpha} vector
-        # then scale it using the standard deviations and compute absolute values according to the GeDI definition
         f = self.kernel(v=a, degree=self.degree, use_torch=True)
         alpha, _, _, _ = torch.linalg.lstsq(f, b - b.mean(), driver='gelsd')
-        alpha_scaled = torch.abs(alpha * f.std(correction=0, dim=0) / a.std(correction=0))
         if self.fine_grained:
             # in the fine-grained constraint, we want a regularizer:
-            #    [ max{ 0, | alpha_1 | - threshold }, max { 0, | alpha_2 | }, ..., max { 0, | alpha_h | } ]
-            alpha_scaled = alpha_scaled - torch.tensor([threshold] + [0] * (len(alpha_scaled) - 1))
-            return torch.maximum(torch.zeros(len(alpha)), alpha_scaled)
+            #    [ max{ 0, | \tilde{alpha}_1 | - threshold }, | \tilde{alpha}_2 |, ..., | \tilde{alpha}_h | ]
+            alpha = torch.abs(alpha)
+            thresholds = torch.tensor([threshold] + [0] * (len(alpha) - 1))
+            return torch.maximum(torch.zeros_like(alpha), alpha - thresholds)
         else:
-            # in the coarse-grained constraints, we simply impose a standard regularizer on the correlation, which is
-            # computed as the norm-1 of the scaled \tilde{alpha} vector, i.e., the sum of its absolute values
-            correlation = alpha_scaled.sum()
+            # in the coarse-grained constraints, we simply impose a standard regularizer on the GeDI value, which is
+            # computed as std(P_a^h @ \tilde{alpha}) / std(a)
+            correlation = torch.std(f @ alpha, correction=0) / a.std(correction=0)
             return torch.maximum(torch.zeros(1), correlation - threshold)
 
     def formulation(self, a: np.ndarray, b: np.ndarray, threshold: float, backend: Backend) -> Any:
+        var_a = a.var(ddof=0)
         if self.fine_grained:
-            var_a = a.var(ddof=0)
             cov_ab = backend.mean(a * b) - a.mean() * backend.mean(b)
             # impose the fine-grained zero constraints on \alpha_i, for each i in {2, ..., h}, i.e.:
             #    cov(a^d, a) * cov(a, b) == var(a) * cov(a^d, v)
@@ -454,15 +458,15 @@ class KernelBasedGeDI(KernelBasedIndicator, DeclarativeIndicator):
             b = b - backend.mean(b, aux=True)
             # we build the polynomial kernel and impose the equations of the linear system
             f = self.kernel(v=a, degree=self.degree, use_torch=False)
-            left_hand_sides = np.atleast_1d(backend.dot(f.T @ f, alpha))
+            ftf_alpha = backend.dot(f.T @ f, alpha)
+            left_hand_sides = np.atleast_1d(ftf_alpha)
             right_hand_sides = np.atleast_1d(backend.dot(f.T, b))
             backend.add_constraints([lhs == rhs for lhs, rhs in zip(left_hand_sides, right_hand_sides)])
-            # eventually, we can compute our indicator as:
-            #     GeDI(a, b) = \sum_{i=1}^h | \alpha_i * std(a^i) | / std(a) = || \alpha * std(P_a^h) ||_1 / std(a)
-            # and, since we want GeDI(a, b) <= threshold, to avoid a division we can rewrite this as:
-            #     || \alpha * std(P_a^h) ||_1 <= threshold * std(a)
-            lhs = backend.norm_1(alpha * f.std(ddof=0, axis=0))
-            backend.add_constraint(lhs <= threshold * a.std(ddof=0))
+            # eventually, we enforce our constraint on the squared term:
+            #     var(f @ alpha) <= threshold ** 2 * var(a)
+            # where var(f @ alpha) = alpha^T @ (f^T @ f @ alpha) / n, with the (f^T @ f @ alpha) term already computed
+            var_fa = backend.dot(alpha.T, ftf_alpha) / len(a)
+            backend.add_constraint(var_fa <= threshold ** 2 * var_a)
 
     def copulas(self, a: np.ndarray, b: np.ndarray, experiment: Any) -> Tuple[np.ndarray, np.ndarray]:
         f = self.kernel(v=a, degree=self.degree, use_torch=False)

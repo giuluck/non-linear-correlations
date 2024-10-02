@@ -2,7 +2,7 @@ import argparse
 import logging
 
 from experiments import CorrelationExperiment
-from items.datasets import Deterministic, Communities, Adult, Census
+from items.datasets import Synthetic, Communities, Adult, Census
 
 log = logging.getLogger("lightning_fabric")
 log.propagate = False
@@ -13,7 +13,7 @@ datasets = dict(
     adult=Adult(),
     census=Census(),
     communities=Communities(),
-    **{name: Deterministic(name=name) for name in Deterministic.FUNCTIONS.keys()}
+    **{name: Synthetic(name=name) for name in Synthetic.FUNCTIONS.keys()}
 )
 
 # build argument parser

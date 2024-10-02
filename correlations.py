@@ -3,7 +3,7 @@ import logging
 import re
 
 from experiments import CorrelationExperiment
-from items.datasets import Deterministic
+from items.datasets import Synthetic
 from items.indicators import DoubleKernelHGR, DensityHGR, ChiSquare, RandomizedDependenceCoefficient, SingleKernelHGR, \
     AdversarialHGR
 
@@ -52,8 +52,8 @@ parser.add_argument(
     '--datasets',
     type=str,
     nargs='+',
-    choices=list(Deterministic.FUNCTIONS.keys()),
-    default=list(Deterministic.FUNCTIONS.keys()),
+    choices=list(Synthetic.FUNCTIONS.keys()),
+    default=list(Synthetic.FUNCTIONS.keys()),
     help='the datasets on which to run the experiment'
 )
 parser.add_argument(

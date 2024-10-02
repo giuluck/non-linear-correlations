@@ -2,7 +2,7 @@ import argparse
 import logging
 
 from experiments import CorrelationExperiment
-from items.datasets import Deterministic
+from items.datasets import Synthetic
 
 log = logging.getLogger("lightning_fabric")
 log.propagate = False
@@ -22,7 +22,7 @@ parser.add_argument(
     '--datasets',
     type=str,
     default=['circle', 'square_sin'],
-    choices=list(Deterministic.FUNCTIONS.keys()),
+    choices=list(Synthetic.FUNCTIONS.keys()),
     help='the dataset on which to run the experiment'
 )
 parser.add_argument(

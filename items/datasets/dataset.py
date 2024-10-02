@@ -20,10 +20,11 @@ BackendOutput = Union[np.ndarray, pd.Series, pd.DataFrame, torch.Tensor]
 
 
 class Dataset(Item):
+    """Interface for a dataset used in the experiments."""
 
     @classmethod
     def last_edit(cls) -> str:
-        return "2024-08-04 12:00:00"
+        return "2024-10-02 00:00:00"
 
     def __init__(self) -> None:
         self._cached_data: Optional[pd.DataFrame] = None
@@ -50,24 +51,6 @@ class Dataset(Item):
     @abstractmethod
     def classification(self) -> bool:
         """Whether this is a classification or a regression task."""
-        pass
-
-    @property
-    @abstractmethod
-    def units(self) -> List[int]:
-        """The number of hidden units in the neural model trained on the dataset."""
-        pass
-
-    @property
-    @abstractmethod
-    def batch(self) -> int:
-        """The batch size in the neural model trained on the dataset."""
-        pass
-
-    @property
-    @abstractmethod
-    def threshold(self) -> float:
-        """The regularization threshold used when learning a constrained model."""
         pass
 
     @property
@@ -136,7 +119,41 @@ class Dataset(Item):
             raise AssertionError(f"Unknown backend '{backend}'")
 
 
-class SurrogateDataset(Dataset):
+class BenchmarkDataset(Dataset):
+    """Interface for a benchmark dataset used in learning experiments."""
+
+    @property
+    @abstractmethod
+    def steps(self) -> int:
+        """The number of gradient steps to perform when training the neural model."""
+        pass
+
+    @property
+    @abstractmethod
+    def units(self) -> List[int]:
+        """The number of hidden units in the neural model trained on the dataset."""
+        pass
+
+    @property
+    @abstractmethod
+    def batch(self) -> int:
+        """The batch size in the neural model trained on the dataset."""
+        pass
+
+    @property
+    @abstractmethod
+    def hgr(self) -> float:
+        """The regularization threshold used when learning a constrained model with the HGR indicator."""
+        pass
+
+    @property
+    def gedi(self) -> float:
+        """The regularization threshold used when learning a constrained model with the GeDI indicator."""
+        # load the indicator locally to avoid circular dependencies
+        from items.indicators import KernelBasedGeDI
+        scale = KernelBasedGeDI(degree=1).correlation(a=self.excluded(), b=self.target())['correlation']
+        return round(0.2 * scale, 3)
+
     @property
     @abstractmethod
     def surrogate_name(self) -> str:

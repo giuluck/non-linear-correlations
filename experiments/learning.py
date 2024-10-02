@@ -1,23 +1,20 @@
 import gc
 import os
-from typing import Dict, Optional, Any, List, Iterable, Callable, Tuple
+from typing import Dict, Any, List, Iterable, Callable, Tuple, Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytorch_lightning as pl
 import seaborn as sns
-import wandb
 from matplotlib.axes import Axes
-from pytorch_lightning.loggers import WandbLogger
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from experiments.experiment import Experiment
-from items.datasets import SurrogateDataset
-from items.indicators import Indicator
-from items.learning import MultiLayerPerceptron, Data, Loss, Accuracy, Correlation, DIDI, Metric, History, Progress, \
-    Storage
+from items.algorithms import Loss, Score, Correlation, DIDI, Metric, Algorithm, LagrangianDual, LinearModel, \
+    RandomForest, GradientBoosting, NeuralNetwork, MovingTargets
+from items.datasets import BenchmarkDataset
+from items.indicators import Indicator, KernelBasedGeDI
 
 PALETTE: List[str] = [
     '#000000',
@@ -32,6 +29,9 @@ PALETTE: List[str] = [
     '#dede00'
 ]
 """The color palette for plotting data."""
+
+ITERATIONS: int = 10
+"""The number of Moving Targets iterations,"""
 
 SEED: int = 0
 """The random seed used in the experiment."""
@@ -49,161 +49,89 @@ class LearningExperiment(Experiment):
     def routine(cls, experiment: 'LearningExperiment') -> Dict[str, Any]:
         gc.collect()
         pl.seed_everything(SEED, workers=True)
-        dataset = experiment.dataset
-        # retrieve train and validation data from splits and set parameters
-        trn, val = dataset.data(folds=experiment.folds, seed=SEED)[experiment.fold]
-        trn_data = Data(x=trn[dataset.input_names], y=trn[dataset.target_name])
-        val_data = Data(x=val[dataset.input_names], y=val[dataset.target_name])
-        # build model
-        model = MultiLayerPerceptron(
-            units=[len(dataset.input_names), *experiment.units],
-            classification=dataset.classification,
-            feature=dataset.excluded_index,
-            indicator=experiment.indicator,
-            alpha=experiment.alpha,
-            threshold=experiment.threshold
+        output = experiment.algorithm.run(
+            dataset=experiment.dataset,
+            folds=experiment.folds,
+            fold=experiment.fold,
+            seed=SEED
         )
-        # build trainer and callback
-        history = History()
-        callbacks = [Progress(), Storage(experiment=experiment)]
-        # build the configuration and the key for the experiment
-        if experiment.wandb_project is not None:
-            wandb_logger = WandbLogger(project=experiment.wandb_project, name=experiment.key, log_model='all')
-            wandb_logger.experiment.config.update(experiment.signature)
-            loggers = [history, wandb_logger]
-        else:
-            loggers = [history]
-        trainer = pl.Trainer(
-            accelerator='cpu',
-            deterministic=True,
-            min_steps=experiment.steps,
-            max_steps=experiment.steps,
-            logger=loggers,
-            callbacks=callbacks,
-            num_sanity_val_steps=0,
-            val_check_interval=1,
-            log_every_n_steps=1,
-            enable_progress_bar=False,
-            enable_checkpointing=False,
-            enable_model_summary=False
-        )
-        # run fitting
-        batch_size = len(trn_data) if experiment.batch == -1 else experiment.batch
-        trainer.fit(
-            model=model,
-            train_dataloaders=DataLoader(trn_data, batch_size=batch_size, shuffle=True),
-            val_dataloaders=DataLoader(val_data, batch_size=len(val), shuffle=False)
-        )
-        # close wandb in case it was used in the logger
-        if experiment.wandb_project is not None:
-            wandb.finish()
-        # store external files and return result
         return dict(
-            train_inputs=trn_data.x.numpy(force=True),
-            train_target=trn_data.y.numpy(force=True),
-            val_inputs=val_data.x.numpy(force=True),
-            val_target=val_data.y.numpy(force=True),
-            history=history.results,
-            metric={}
+            metric={},
+            train_inputs=output.train_inputs,
+            train_target=output.train_target,
+            train_predictions=output.train_predictions,
+            val_inputs=output.val_inputs,
+            val_target=output.val_target,
+            val_predictions=output.val_predictions,
+            **output.additional
         )
 
     @property
     def files(self) -> Dict[str, str]:
-        # store a single file for each prediction vector and model
-        step_files = {}
-        for s in range(self.steps):
-            step_files[f'train_prediction_{s}'] = f'pred-{s}'
-            step_files[f'val_prediction_{s}'] = f'pred-{s}'
-            step_files[f'model_{s}'] = f'model-{s}'
+        # store additional files for history/predictions in case of lagrangian dual or moving targets algorithm
+        additional_files = {}
+        if isinstance(self.algorithm, LagrangianDual):
+            additional_files['history'] = 'history'
+            for s in range(self.algorithm.steps):
+                additional_files[f'train_prediction_{s}'] = f'pred-{s}'
+                additional_files[f'val_prediction_{s}'] = f'pred-{s}'
+        elif isinstance(self.algorithm, MovingTargets):
+            for s in range(self.algorithm.iterations + 1):
+                additional_files[f'train_prediction_{s}'] = f'pred-{s}'
+                additional_files[f'val_prediction_{s}'] = f'pred-{s}'
+                additional_files[f'adjustments_{s}'] = f'pred-{s}'
+        # return the list of files
         return dict(
             train_inputs='data',
             train_target='data',
+            train_predictions='data',
             val_inputs='data',
             val_target='data',
-            history='history',
+            val_predictions='data',
             metric='metric',
-            **step_files
+            **additional_files
         )
 
     @property
     def signature(self) -> Dict[str, Any]:
         return dict(
             dataset=self.dataset.configuration,
-            indicator=dict(name='unc') if self.indicator is None else self.indicator.configuration,
-            steps=self.steps,
-            units=self.units,
-            batch=self.batch,
-            alpha=self.alpha,
-            threshold=self.threshold,
+            algorithm=self.algorithm.configuration,
+            folds=self.folds,
             fold=self.fold,
-            folds=self.folds
         )
 
     def __init__(self,
                  folder: str,
-                 dataset: SurrogateDataset,
-                 indicator: Optional[Indicator],
-                 steps: int,
-                 units: Optional[Iterable[int]],
-                 batch: Optional[int],
-                 threshold: Optional[float],
-                 alpha: Optional[float],
-                 fold: int,
+                 dataset: BenchmarkDataset,
+                 algorithm: Algorithm,
                  folds: int,
-                 wandb_project: Optional[str]):
+                 fold: int):
         """
         :param dataset:
             The dataset used in the experiment.
 
-        :param indicator:
-            The indicator to be used as regularizer, or None for unconstrained model.
-
-        :param steps:
-            The number of training steps.
-
-        :param units:
-            The number of hidden units used to build the neural model, or None to use the dataset default value.
-
-        :param batch:
-            The batch size used for training (-1 for full batch), or None to use the dataset default value.
-
-        :param threshold:
-            The regularization threshold used during training, or None to use the dataset default value.
-
-        :param alpha:
-            The alpha value used in the experiment.
-
-        :param fold:
-            The fold that is used for training the model.
+        :param algorithm:
+            The algorithm used in the experiment.
 
         :param folds:
             The number of folds for k-fold cross-validation.
 
-        :param wandb_project:
-            The name of the Weights & Biases project for logging, or None for no logging.
+        :param fold:
+            The fold that is used for training the model.
         """
-        if indicator is None:
-            alpha = None
-            threshold = 0.0
-        self.dataset: SurrogateDataset = dataset
-        self.indicator: Optional[Indicator] = indicator
-        self.steps: int = steps
-        self.units: List[int] = dataset.units if units is None else list(units)
-        self.batch: int = dataset.batch if batch is None else batch
-        self.threshold: float = dataset.threshold if threshold is None else threshold
-        self.alpha: Optional[float] = alpha
+        self.dataset: BenchmarkDataset = dataset
+        self.algorithm: Algorithm = algorithm
         self.fold: int = fold
         self.folds: int = folds
-        self.wandb_project: Optional[str] = wandb_project
         super().__init__(folder=folder)
 
     @staticmethod
-    def calibration(datasets: Iterable[SurrogateDataset],
+    def calibration(datasets: Iterable[BenchmarkDataset],
                     batches: Iterable[int] = (512, 4096, -1),
                     units: Iterable[Iterable[int]] = ((32,), (256,), (32,) * 2, (256,) * 2, (32,) * 3, (256,) * 3),
                     steps: int = 1000,
                     folds: int = 5,
-                    wandb_project: Optional[str] = None,
                     folder: str = 'results',
                     extensions: Iterable[str] = ('png',),
                     plot: bool = False):
@@ -211,11 +139,11 @@ class LearningExperiment(Experiment):
         units = {str(list(unit)): list(unit) for unit in units}
         datasets = {dataset.name: dataset for dataset in datasets}
 
-        def configuration(ds, bt, ut, fl):
-            classification = datasets[ds].classification
-            return dict(dataset=ds, batch=bt, units=ut, fold=fl), [
+        def configuration(_ds, _al, _fl):
+            classification = datasets[_ds].classification
+            return dict(dataset=_ds, units=_al[0], batch=_al[1], fold=_fl), [
                 Loss(classification=classification),
-                Accuracy(classification=classification)
+                Score(classification=classification)
             ]
 
         experiments = LearningExperiment.execute(
@@ -223,15 +151,12 @@ class LearningExperiment(Experiment):
             verbose=True,
             save_time=0,
             dataset=datasets,
-            indicator=None,
-            batch=batches,
-            units=units,
-            threshold=0.0,
-            alpha=None,
+            algorithm={
+                (unitK, batchK): LagrangianDual(units=unit, batch=batch, steps=steps, threshold=0.0, indicator=None)
+                for unitK, unit in units.items() for batchK, batch in batches.items()
+            },
             fold=list(range(folds)),
-            folds=folds,
-            steps=steps,
-            wandb_project=wandb_project
+            folds=folds
         )
         # get metric results and add time
         results = LearningExperiment._metrics(experiments=experiments, configuration=configuration)
@@ -287,67 +212,65 @@ class LearningExperiment(Experiment):
             plt.close(fig)
 
     @staticmethod
-    def hgr(datasets: Iterable[SurrogateDataset],
+    def hgr(datasets: Iterable[BenchmarkDataset],
             indicators: Dict[str, Indicator],
-            steps: int = 500,
             folds: int = 5,
-            units: Optional[Iterable[int]] = None,
-            batch: Optional[int] = None,
-            alpha: Optional[float] = None,
-            threshold: Optional[float] = None,
-            wandb_project: Optional[str] = None,
             folder: str = 'results',
             extensions: Iterable[str] = ('png', 'csv'),
             plot: bool = False):
         dummy_correlation = LearningExperiment._DummyCorrelation()
         indicators = {dummy_correlation.name: None, **indicators}
         datasets = {dataset.name: dataset for dataset in datasets}
-        units = None if units is None else tuple(units)
         experiments = {}
 
-        def configuration(_ds, _mt, _fl):
+        def configuration(_ds, _al, _fl):
             d = datasets[_ds]
             # return a list of indicators for loss, accuracy, correlation, and optionally surrogate fairness
-            return dict(Dataset=_ds, Regularizer=_mt, fold=_fl), [
-                Accuracy(classification=d.classification),
-                Correlation(excluded=d.excluded_index, classification=d.classification, algorithm='sk'),
-                DIDI(excluded=d.surrogate_index, classification=d.classification)
+            return dict(Dataset=_ds, Regularizer=_al, fold=_fl), [
+                Score(classification=d.classification, name='AUC' if d.classification else 'R$^2$'),
+                Correlation(
+                    excluded=d.excluded_index,
+                    classification=d.classification,
+                    algorithm='sk',
+                    name='HGR-SK$_z$'
+                ),
+                DIDI(excluded=d.surrogate_index, classification=d.classification, name='DIDI$_s$')
             ]
 
         # +------------------------------------------------------------------------------------------------------------+
         # |                                               PRINT HISTORY                                                |
         # +------------------------------------------------------------------------------------------------------------+
-        sns.set(context='poster', style='whitegrid')
+        sns.set(context='poster', style='whitegrid', font_scale=1)
         # iterate over dataset and batches
         for name, dataset in datasets.items():
             # use dictionaries for dataset to retrieve correct configuration
-            # use tuples for units so to avoid considering them as different values to test
             sub_experiments = LearningExperiment.execute(
                 folder=folder,
                 save_time=0,
                 verbose=True,
                 dataset={name: dataset},
-                indicator=indicators,
+                algorithm={key: LagrangianDual(
+                    units=dataset.units,
+                    batch=dataset.batch,
+                    steps=dataset.steps,
+                    threshold=0.0 if indicator is None else dataset.hgr,
+                    indicator=indicator,
+                ) for key, indicator in indicators.items()},
                 fold=list(range(folds)),
-                folds=folds,
-                units=units,
-                batch=batch,
-                threshold=threshold,
-                alpha=alpha,
-                steps=steps,
-                wandb_project=wandb_project
+                folds=folds
             )
             experiments.update(sub_experiments)
             # get and plot metric results
-            group = LearningExperiment._metrics(experiments=sub_experiments, configuration=configuration)
-            metrics = group['metric'].unique()
+            steps = dataset.steps
+            df = LearningExperiment._metrics(experiments=sub_experiments, configuration=configuration)
+            metrics = df['metric'].unique()
             col = len(metrics) + 1
             fig, axes = plt.subplots(2, col, figsize=(5 * col, 8), tight_layout=True)
-            for i, sp in enumerate(['Train', 'Val']):
+            for i, split in enumerate(['Train', 'Val']):
                 for j, metric in enumerate(metrics):
                     j += 1
                     sns.lineplot(
-                        data=group[np.logical_and(group['split'] == sp, group['metric'] == metric)],
+                        data=df[np.logical_and(df['split'] == split, df['metric'] == metric)],
                         x='step',
                         y='value',
                         estimator='mean',
@@ -358,9 +281,10 @@ class LearningExperiment(Experiment):
                         palette=PALETTE[:len(indicators)],
                         ax=axes[i, j]
                     )
-                    axes[i, j].set_title(f"{metric} ({sp.lower()})")
+                    axes[i, j].set_title(f"{metric} ({split.lower()})", pad=10)
                     axes[i, j].get_legend().remove()
-                    axes[i, j].set_xticks([0, steps // 2, steps])
+                    axes[i, j].set_xticks([0, (steps - 1) // 2, steps - 1], labels=[1, steps // 2, steps])
+                    axes[i, j].set_xlim([0, steps - 1])
                     axes[i, j].set_ylabel(None)
                     if i == 1:
                         ub = axes[1, j].get_ylim()[1] if metric == 'MSE' or metric == 'BCE' or 'DIDI' in metric else 1
@@ -369,14 +293,14 @@ class LearningExperiment(Experiment):
             # get and plot lambda history
             lambdas = []
             for (_, mtr, fld), experiment in sub_experiments.items():
-                history = experiment['history']
-                alphas = ([np.nan] * len(history['alpha'])) if experiment.indicator is None else history['alpha']
+                multipliers = experiment['history']['mul']
+                multipliers = ([np.nan] * len(multipliers)) if experiment.algorithm.indicator is None else multipliers
                 lambdas.extend([{
                     'Regularizer': mtr,
                     'fold': fld,
                     'step': step,
-                    'lambda': alphas[step]
-                } for step in range(experiment.steps)])
+                    'lambda': multipliers[step]
+                } for step in range(experiment.algorithm.steps)])
             sns.lineplot(
                 data=pd.DataFrame(lambdas),
                 x='step',
@@ -390,8 +314,9 @@ class LearningExperiment(Experiment):
                 ax=axes[1, 0]
             )
             axes[1, 0].get_legend().remove()
-            axes[1, 0].set_title('λ')
-            axes[1, 0].set_xticks([0, steps // 2, steps])
+            axes[1, 0].set_title('λ', pad=10)
+            axes[1, 0].set_xticks([0, (steps - 1) // 2, steps - 1], labels=[1, steps // 2, steps])
+            axes[1, 0].set_xlim([0, steps - 1])
             axes[1, 0].set_ylabel(None)
             # plot legend
             handles, labels = axes[1, 0].get_legend_handles_labels()
@@ -405,7 +330,7 @@ class LearningExperiment(Experiment):
             # store, print, and plot if necessary
             for extension in extensions:
                 if extension not in ['csv', 'tex']:
-                    file = os.path.join(folder, f'history_{name}.{extension}')
+                    file = os.path.join(folder, f'hgr_{name}.{extension}')
                     fig.savefig(file, bbox_inches='tight')
             if plot:
                 fig.suptitle(f"Learning History for {name.title()}")
@@ -414,70 +339,235 @@ class LearningExperiment(Experiment):
         # +------------------------------------------------------------------------------------------------------------+
         # |                                               PRINT OUTPUTS                                                |
         # +------------------------------------------------------------------------------------------------------------+
-        df = []
-        metric_names = ['Constraint', 'Score', 'DIDI']
+        results = []
+        metric_names = ['Score', 'Constraint', 'DIDI']
         # retrieve results
         for (ds, nd, fl), experiment in tqdm(experiments.items(), desc='Fetching metrics'):
             dataset = datasets[ds]
             indicator = indicators[nd]
+            # noinspection PyTypeChecker
             constraint = dummy_correlation if indicator is None else Correlation(
                 excluded=dataset.excluded_index,
                 algorithm=indicator.name,
                 classification=dataset.classification
             )
             metrics = [
+                Score(classification=dataset.classification),
                 constraint,
-                Accuracy(classification=dataset.classification),
                 DIDI(excluded=dataset.surrogate_index, classification=dataset.classification)
             ]
             configuration = dict(Dataset=ds, Regularizer=nd)
-            df.append({**configuration, 'split': 'train', 'metric': 'Time', 'value': experiment.elapsed_time})
+            results.append({**configuration, 'split': 'train', 'metric': 'Time', 'value': experiment.elapsed_time})
             # if present retrieve metrics, otherwise store them if necessary
             metric_results = experiment['metric']
             metric_update = False
             for split in ['train', 'val']:
                 x = experiment[f'{split}_inputs']
                 y = experiment[f'{split}_target'].flatten()
-                p = experiment[f'{split}_prediction_{steps - 1}'].flatten()
+                p = experiment[f'{split}_predictions'].flatten()
                 for name, metric in zip(metric_names, metrics):
-                    index = f'{split}_{metric.name}'
+                    index = f'{split}::{metric.name}'
                     value = metric_results.get(index)
                     if value is None:
                         metric_update = True
                         value = metric(x=x, y=y, p=p)
                         metric_results[index] = value
-                    df.append({**configuration, 'split': split, 'metric': name, 'value': value})
+                    results.append({**configuration, 'split': split, 'metric': name, 'value': value})
             if metric_update:
                 experiment.update(flush=True, metric=metric_results)
-        df = pd.DataFrame(df).groupby(
+        results = pd.DataFrame(results).groupby(
             by=['Dataset', 'Regularizer', 'split', 'metric'],
             as_index=False
         ).agg(['mean', 'std'])
-        df.columns = ['Dataset', 'Regularizer', 'split', 'metric', 'mean', 'std']
+        results.columns = ['Dataset', 'Regularizer', 'split', 'metric', 'mean', 'std']
         if 'csv' in extensions:
-            file = os.path.join(folder, 'outputs.csv')
-            df.to_csv(file, header=True, index=False, float_format=lambda v: f"{v:.2f}")
+            file = os.path.join(folder, 'hgr.csv')
+            results.to_csv(file, header=True, index=False, float_format=lambda v: f"{v:.2f}")
         if 'tex' in extensions:
-            file = os.path.join(folder, 'outputs.tex')
-            group = df.copy()
-            group['text'] = [
-                f"{row['mean']:02.0f} ± {row['std']:02.0f}" if np.all(row['metric'] == 'Time') else
-                f"{100 * row['mean']:02.0f} ± {100 * row['std']:02.0f}" for _, row in group.iterrows()
+            df = results.copy()
+            df['scale'] = df['metric'].map(lambda m: 1 if m == 'Metric' else 100)
+            df['text'] = [f"{r['scale'] * r['mean']:02.0f} ± {r['scale'] * r['std']:02.0f}" for _, r in df.iterrows()]
+            df = df.pivot(index=['Dataset', 'Regularizer'], columns=['metric', 'split'], values='text')
+            output = [
+                '\\begin{tabular}{c|cc|cc|cc|c}',
+                '\\toprule',
+                'Regularizer & \\multicolumn{2}{c|}{Score ($\\times 10^2$)} & \\multicolumn{2}{c|}{$\\text{Constraint}'
+                '_z (\\times 10^2)$} & \\multicolumn{2}{c|}{$\\text{DIDI}_s (\\times 10^2)$} & Time (s) \\\\',
+                ' & train & val & train & val & train & val & \\\\',
             ]
-            group = group.pivot(
-                index=['Dataset', 'Regularizer'],
-                columns=['metric', 'split']
-            ).reorder_levels([1, 2, 0], axis=1)
-            group = group.reindex(index=[(d, m) for d in datasets.keys() for m in indicators.keys()])
-            columns = [(metric, split, agg)
-                       for metric in metric_names
-                       for split in ['train', 'val']
-                       for agg in ['mean', 'std', 'text']]
-            group = group.reindex(columns=columns + [('Time', 'train', agg) for agg in ['mean', 'std', 'text']])
-            if len(datasets) == 1:
-                group = group.droplevel(0)
-            df = group[(c for c in group.columns if c[2] == 'text')].droplevel(2, axis=1)
-            df.to_latex(file, multicolumn=True, multirow=False, multicolumn_format='c')
+            for name, group in df.reset_index().groupby('Dataset', as_index=False):
+                output += ['\\midrule',
+                           f'\\multicolumn{{8}}{{c}}{{{name.upper()} ($\\tau = {datasets[name].hgr}$)}}\\\\',
+                           '\\midrule']
+                columns = [(m, s) for m in metric_names for s in ['train', 'val']]
+                group = group[[('Regularizer', '')] + columns + [('Time', 'train')]]
+                output += group.to_latex(header=False, index=False).split('\n')[3:-3]
+            output += ['\\bottomrule', '\\end{tabular}']
+            with open(os.path.join(folder, 'hgr.tex'), 'w') as file:
+                file.writelines('\n'.join(output))
+
+    @staticmethod
+    def gedi(datasets: Iterable[BenchmarkDataset],
+             constraint: Literal['fine', 'coarse', 'both'] = 'both',
+             learners: Iterable[str] = ('lm', 'rf', 'gb', 'nn'),
+             methods: Iterable[str] = ('mt', 'ld'),
+             folds: int = 5,
+             folder: str = 'results',
+             extensions: Iterable[str] = ('png', 'csv'),
+             plot: bool = False):
+        # build indicators based on constraint type
+        indicators = {}
+        if constraint in ['fine', 'both']:
+            indicators['Fine'] = KernelBasedGeDI(fine_grained=True)
+        if constraint in ['coarse', 'both']:
+            indicators['Coarse'] = KernelBasedGeDI(fine_grained=False)
+        datasets = {dataset.name: dataset for dataset in datasets}
+        # iterate over dataset and batches
+        results = []
+        metric_names = ['Score', 'GeDI', 'HGR-KB', 'DIDI']
+        for name, dataset in datasets.items():
+            # build algorithms
+            algorithms = {}
+            for learner in learners:
+                if learner == 'lm':
+                    model = LinearModel()
+                elif learner == 'rf':
+                    model = RandomForest()
+                elif learner == 'gb':
+                    model = GradientBoosting()
+                elif learner == 'nn':
+                    model = NeuralNetwork(units=dataset.units, steps=dataset.steps, batch=dataset.batch)
+                else:
+                    raise AssertionError(f"Unknown learner '{learner}', possible values are 'lm', 'rf', 'gb', or 'nn'")
+                algorithms[learner] = model
+                for key, indicator in indicators.items():
+                    if 'mt' in methods:
+                        algorithms[f'{learner}+mt {key}'] = MovingTargets(
+                            learner=model,
+                            iterations=ITERATIONS,
+                            threshold=dataset.gedi,
+                            indicator=indicator
+                        )
+                    if 'ld' in methods and learner == 'nn':
+                        algorithms[f'nn+ld {key}'] = LagrangianDual(
+                            units=dataset.units,
+                            steps=dataset.steps,
+                            batch=dataset.batch,
+                            threshold=dataset.gedi,
+                            indicator=indicator
+                        )
+            # run experiments and compute results
+            metrics = [
+                Score(classification=dataset.classification),
+                Correlation(classification=dataset.classification, excluded=dataset.excluded_index, algorithm='gedi'),
+                Correlation(classification=dataset.classification, excluded=dataset.excluded_index, algorithm='kb'),
+                DIDI(classification=dataset.classification, excluded=dataset.surrogate_index)
+            ]
+            experiments = LearningExperiment.execute(
+                folder=folder,
+                save_time=0,
+                verbose=True,
+                dataset=dataset,
+                algorithm=algorithms,
+                fold=list(range(folds)),
+                folds=folds
+            )
+            for (al, fl), experiment in experiments.items():
+                configuration = dict(dataset=name, algorithm=al, fold=fl)
+                results.append({**configuration, 'split': 'train', 'metric': 'Time', 'value': experiment.elapsed_time})
+                # if present retrieve metrics, otherwise store them if necessary
+                metric_results = experiment['metric']
+                metric_update = False
+                for split in ['train', 'val']:
+                    x = experiment[f'{split}_inputs']
+                    y = experiment[f'{split}_target'].flatten()
+                    p = experiment[f'{split}_predictions'].flatten()
+                    for key, metric in zip(metric_names, metrics):
+                        index = f'{split}::{metric.name}'
+                        value = metric_results.get(index)
+                        if value is None:
+                            metric_update = True
+                            value = metric(x=x, y=y, p=p)
+                            metric_results[index] = value
+                        results.append({**configuration, 'split': split, 'metric': key, 'value': value})
+                if metric_update:
+                    experiment.update(flush=True, metric=metric_results)
+        results = pd.DataFrame(results)
+        # +------------------------------------------------------------------------------------------------------------+
+        # |                                             PRINT HGR VS GEDI                                              |
+        # +------------------------------------------------------------------------------------------------------------+
+        sns.set(context='poster', style='whitegrid', font_scale=2.8)
+        data = results.pivot(
+            columns='metric',
+            index=['dataset', 'algorithm', 'split', 'fold'],
+            values='value'
+        ).reset_index()
+        data['Constraint'] = ['Coarse' if 'Coarse' in v else 'Fine' if 'Fine' in v else '//' for v in data['algorithm']]
+        constraints = data['Constraint'].nunique()
+        for name in datasets.keys():
+            group = data[data['dataset'] == name]
+            fig = plt.figure(figsize=(16, 14), tight_layout=True)
+            ax = fig.gca()
+            sns.regplot(data=group, x='GeDI', y='HGR-KB', color='black', scatter=False, ax=ax)
+            sns.scatterplot(
+                data=group,
+                x='GeDI',
+                y='HGR-KB',
+                hue='Constraint',
+                hue_order=['//', 'Fine', 'Coarse'],
+                palette=PALETTE[1:constraints + 1],
+                edgecolor='black',
+                s=1000,
+                alpha=1,
+                zorder=2,
+                ax=ax
+            )
+            ax.set_ylim((0, 1))
+            ax.legend(loc='upper left')
+            # store, print, and plot if necessary
+            for extension in extensions:
+                if extension not in ['csv', 'tex']:
+                    file = os.path.join(folder, f'gedi_{name}.{extension}')
+                    fig.savefig(file, bbox_inches='tight')
+            if plot:
+                fig.suptitle(f"GeDI vs. HGR - {name.title()}")
+                fig.show()
+            plt.close(fig)
+        # +------------------------------------------------------------------------------------------------------------+
+        # |                                               PRINT OUTPUTS                                                |
+        # +------------------------------------------------------------------------------------------------------------+
+        results = results.groupby(
+            by=['dataset', 'algorithm', 'split', 'metric'],
+            as_index=False
+        )['value'].agg(['mean', 'std'])
+        results.columns = ['dataset', 'algorithm', 'split', 'metric', 'mean', 'std']
+        if 'csv' in extensions:
+            file = os.path.join(folder, 'gedi.csv')
+            results.to_csv(file, header=True, index=False, float_format=lambda v: f"{v:.2f}")
+        if 'tex' in extensions:
+            df = results[results['metric'] != 'HGR-KB'].copy()
+            df['scale'] = df['metric'].map(lambda m: 1 if m == 'Time' else (1000 if 'GeDI' in m else 100))
+            df['text'] = [f"{r['scale'] * r['mean']:02.0f} ± {r['scale'] * r['std']:02.0f}" for _, r in df.iterrows()]
+            df['algorithm'] = [v.upper().replace('COARSE', 'Coarse').replace('FINE', 'Fine') for v in df['algorithm']]
+            df = df.pivot(index=['dataset', 'algorithm'], columns=['metric', 'split'], values='text')
+            output = [
+                '\\begin{tabular}{l|cc|cc|cc|c}',
+                '\\toprule',
+                '\multicolumn{1}{c|}{Algorithm} & \\multicolumn{2}{c|}{Score ($\\times 10^2$)} & \\multicolumn{2}{c|}{'
+                '$\\text{GeDI}_z (\\times 10^3)$} & \\multicolumn{2}{c|}{$\\text{DIDI}_s (\\times 10^2)$} & '
+                'Time (s) \\\\',
+                ' & train & val & train & val & train & val & \\\\',
+            ]
+            for name, group in df.reset_index().groupby('dataset', as_index=False):
+                output += ['\\midrule',
+                           f'\\multicolumn{{8}}{{c}}{{{name.upper()} ($\\tau = {datasets[name].gedi}$)}}\\\\',
+                           '\\midrule']
+                columns = [(m, s) for m in metric_names for s in ['train', 'val'] if 'HGR' not in m]
+                group = group[[('algorithm', '')] + columns + [('Time', 'train')]]
+                output += group.to_latex(header=False, index=False).split('\n')[3:-3]
+            output += ['\\bottomrule', '\\end{tabular}']
+            with open(os.path.join(folder, 'gedi.tex'), 'w') as file:
+                file.writelines('\n'.join(output))
 
     @staticmethod
     def _metrics(experiments: Dict[Any, 'LearningExperiment'],
@@ -493,14 +583,14 @@ class LearningExperiment(Experiment):
             # compute indicators for each step
             info, metrics = configuration(*index)
             outputs = {
-                **{f'train_{mtr.name}': history.get(f'train_{mtr.name}', []) for mtr in metrics},
-                **{f'val_{mtr.name}': history.get(f'val_{mtr.name}', []) for mtr in metrics},
+                **{f'train::{mtr.name}': history.get(f'train::{mtr.name}', []) for mtr in metrics},
+                **{f'val::{mtr.name}': history.get(f'val::{mtr.name}', []) for mtr in metrics},
             }
             # if the indicators are already pre-computed, load them
             if np.all([len(v) == len(history['step']) for v in outputs.values()]):
                 df = pd.DataFrame(outputs).melt()
-                df['split'] = df['variable'].map(lambda v: v.split('_')[0].title())
-                df['metric'] = df['variable'].map(lambda v: v.split('_')[1])
+                df['split'] = df['variable'].map(lambda v: v.split('::')[0].title())
+                df['metric'] = df['variable'].map(lambda v: v.split('::')[1])
                 df['step'] = list(history['step']) * len(outputs)
                 for key, value in info.items():
                     df[key] = value
@@ -515,7 +605,7 @@ class LearningExperiment(Experiment):
                     for mtr in metrics:
                         for split, (x, y, p) in zip(['train', 'val'], [(xtr, ytr, ptr), (xvl, yvl, pvl)]):
                             # if there is already a value use it, otherwise compute the metric and append the value
-                            output_list = outputs[f'{split}_{mtr.name}']
+                            output_list = outputs[f'{split}::{mtr.name}']
                             if len(output_list) > step:
                                 value = output_list[step]
                             else:

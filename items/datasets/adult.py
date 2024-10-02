@@ -3,10 +3,11 @@ from typing import Dict, Any, List
 
 import pandas as pd
 
-from items.datasets.dataset import SurrogateDataset
+from items.datasets.dataset import BenchmarkDataset
 
 
-class Adult(SurrogateDataset):
+class Adult(BenchmarkDataset):
+    """Dataset for the 'Adult Census Income' benchmark."""
 
     def _load(self) -> pd.DataFrame:
         with importlib.resources.path('data', 'adult.csv') as filepath:
@@ -26,6 +27,10 @@ class Adult(SurrogateDataset):
         return True
 
     @property
+    def steps(self) -> int:
+        return 500
+
+    @property
     def units(self) -> List[int]:
         return [32, 32]
 
@@ -34,7 +39,7 @@ class Adult(SurrogateDataset):
         return 2048
 
     @property
-    def threshold(self) -> float:
+    def hgr(self) -> float:
         return 0.2
 
     @property

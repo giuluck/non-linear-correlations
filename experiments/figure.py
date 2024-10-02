@@ -9,7 +9,7 @@ from scipy.stats import pearsonr
 
 from items.datasets import Dataset
 from items.indicators import DoubleKernelHGR, KernelBasedGeDI
-from items.learning.mt import DeclarativeMaster
+from items.algorithms.moving import DeclarativeMaster
 
 
 class FigureExperiment:

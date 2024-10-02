@@ -7,7 +7,7 @@ from experiments import AnalysisExperiment, CorrelationExperiment, LearningExper
 EXPERIMENTS = {
     'analysis': AnalysisExperiment,
     'correlation': CorrelationExperiment,
-    'learning': LearningExperiment
+    'algorithms': LearningExperiment
 }
 
 # build argument parser

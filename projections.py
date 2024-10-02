@@ -2,7 +2,7 @@ import argparse
 import logging
 
 from experiments import ConstraintExperiment
-from items.datasets import Deterministic, Communities, Adult, Census
+from items.datasets import Synthetic, Communities, Adult, Census
 
 log = logging.getLogger("lightning_fabric")
 log.propagate = False
@@ -21,8 +21,8 @@ def dataset(key):
     if '-' in key:
         key, noise = key.split('-')
         noise = float(noise)
-    if key in Deterministic.FUNCTIONS:
-        return Deterministic(name=key, noise=noise, seed=0)
+    if key in Synthetic.FUNCTIONS:
+        return Synthetic(name=key, noise=noise, seed=0)
     raise KeyError(f"Invalid key '{key}' for dataset")
 
 

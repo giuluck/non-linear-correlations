@@ -92,6 +92,15 @@ services:
         source: ${FOLDER:-results}
         target: /project/results
 
+  gedi:
+    image: correlations
+    depends_on: [ main ]
+    command: python gedi.py --folder results
+    volumes:
+      - type: bind
+        source: ${FOLDER:-results}
+        target: /project/results
+
   hgr:
     image: correlations
     depends_on: [ main ]

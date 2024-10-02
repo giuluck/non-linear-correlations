@@ -3,10 +3,12 @@ from typing import List, Any, Dict
 
 import pandas as pd
 
-from items.datasets.dataset import SurrogateDataset
+from items.datasets.dataset import BenchmarkDataset
 
 
-class Communities(SurrogateDataset):
+class Communities(BenchmarkDataset):
+    """Dataset for the 'Communities & Crimes' benchmark."""
+
     def _load(self) -> pd.DataFrame:
         with importlib.resources.path('data', 'communities.csv') as filepath:
             data = pd.read_csv(filepath)
@@ -27,6 +29,10 @@ class Communities(SurrogateDataset):
         return False
 
     @property
+    def steps(self) -> int:
+        return 500
+
+    @property
     def units(self) -> List[int]:
         return [256, 256]
 
@@ -35,7 +41,7 @@ class Communities(SurrogateDataset):
         return -1
 
     @property
-    def threshold(self) -> float:
+    def hgr(self) -> float:
         return 0.3
 
     @property
