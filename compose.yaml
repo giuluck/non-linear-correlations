@@ -154,3 +154,12 @@ services:
       - type: bind
         source: ${FOLDER:-results}
         target: /project/results
+
+  projections:
+    image: correlations
+    depends_on: [ main ]
+    command: python projections.py --folder results
+    volumes:
+      - type: bind
+        source: ${FOLDER:-results}
+        target: /project/results

@@ -496,7 +496,7 @@ class LearningExperiment(Experiment):
         # +------------------------------------------------------------------------------------------------------------+
         # |                                             PRINT HGR VS GEDI                                              |
         # +------------------------------------------------------------------------------------------------------------+
-        sns.set(context='poster', style='whitegrid', font_scale=2.8)
+        sns.set(context='poster', style='whitegrid', font_scale=2.5)
         data = results.pivot(
             columns='metric',
             index=['dataset', 'algorithm', 'split', 'fold'],
@@ -517,13 +517,12 @@ class LearningExperiment(Experiment):
                 hue_order=['//', 'Fine', 'Coarse'],
                 palette=PALETTE[1:constraints + 1],
                 edgecolor='black',
-                s=1000,
+                s=700,
                 alpha=1,
                 zorder=2,
                 ax=ax
             )
             ax.set_ylim((0, 1))
-            ax.legend(loc='upper left')
             # store, print, and plot if necessary
             for extension in extensions:
                 if extension not in ['csv', 'tex']:

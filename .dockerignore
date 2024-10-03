@@ -1,0 +1,14 @@
+.git
+.gitignore
+.gitattributes
+__pycache__
+.DS_Store
+.idea
+.eggs
+*.egg-info
+.venv
+venv
+temp
+dist
+build
+results

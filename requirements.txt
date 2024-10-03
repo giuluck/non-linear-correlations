@@ -1,7 +1,7 @@
 gurobipy==11.0.3
 lightning==2.3.3
 matplotlib==3.9.0
-moving-targets==0.3.0
+moving-targets==0.4.0
 numpy==2.0.1
 pandas==2.2.2
 scikit-learn==1.5.1

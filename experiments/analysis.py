@@ -106,7 +106,7 @@ class AnalysisExperiment(Experiment):
                   folder: str = 'results',
                   extensions: Iterable[str] = ('png',),
                   plot: bool = False):
-        sns.set(context='poster', style='whitegrid', font_scale=1.5)
+        sns.set(context='poster', style='whitegrid', font_scale=1.8)
         # iterate over dataset and features
         for dataset in tqdm(datasets, desc='Fetching Experiments'):
             x = dataset.excluded(backend='numpy')
@@ -144,7 +144,8 @@ class AnalysisExperiment(Experiment):
                 sns.scatterplot(
                     x=inp,
                     y=np.sign(pearson) * out,
-                    alpha=0.4,
+                    s=50,
+                    alpha=0.2,
                     color='black',
                     edgecolor='black',
                     ax=ax
@@ -161,18 +162,19 @@ class AnalysisExperiment(Experiment):
                 ax.set_yticks(ticks, labels=labels)
                 ax.set_xlim(ticks[0] - 0.1, ticks[-1] + 0.1)
                 ax.set_ylim(ticks[0] - 0.1, ticks[-1] + 0.1)
-                ax.set_title(f'{title} Projection')
+                ax.set_title(f'{title} Projection', pad=10)
             # plot original data
             ax = axes['data']
             sns.scatterplot(
                 x=x,
                 y=y,
-                alpha=0.4,
+                s=50,
+                alpha=0.2,
                 edgecolor='black',
                 color='black',
                 ax=ax
             )
-            ax.set_title('Original Data')
+            ax.set_title('Original Data', pad=10)
             ax.set_xlabel(dataset.excluded_name)
             ax.set_ylabel(dataset.target_name)
             ax.set_xticklabels([])
@@ -181,10 +183,11 @@ class AnalysisExperiment(Experiment):
             ax = axes['corr']
             correlations = pd.Series({key.upper(): exp['correlation'] for (key,), exp in experiments.items()})
             sns.barplot(data=correlations, orient='v', color='black', ax=ax)
-            ax.set_title('Correlation')
+            ax.set_title('Correlation', pad=10)
             xlim = ax.get_xlim()
             ax.plot(xlim, [correlations.min()] * 2, '--', color='#C30010')
             ax.plot(xlim, [correlations.max()] * 2, '--', color='#C30010')
+            ax.set_xticks(ax.get_xticks(), labels=ax.get_xticklabels(), rotation=90)
             ax.set_yticks(np.linspace(0, 1, 6, endpoint=True).round(1))
             ax.set_ylim([-0.01, 1.01])
             # store and plot if necessary

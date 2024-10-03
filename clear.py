@@ -1,13 +1,14 @@
 import argparse
 import os
 
-from experiments import AnalysisExperiment, CorrelationExperiment, LearningExperiment
+from experiments import AnalysisExperiment, CorrelationExperiment, LearningExperiment, ConstraintExperiment
 
 # list all the available experiment files
 EXPERIMENTS = {
     'analysis': AnalysisExperiment,
+    'constraint': ConstraintExperiment,
     'correlation': CorrelationExperiment,
-    'algorithms': LearningExperiment
+    'learning': LearningExperiment
 }
 
 # build argument parser
