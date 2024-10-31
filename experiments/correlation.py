@@ -231,7 +231,7 @@ class CorrelationExperiment(Experiment):
                 x='noise',
                 y='correlation',
                 estimator='mean',
-                errorbar='sd',
+                errorbar=None,
                 color='black',
                 linewidth=5,
                 ax=ax

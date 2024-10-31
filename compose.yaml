@@ -146,6 +146,15 @@ services:
         source: ${FOLDER:-results}
         target: /project/results
 
+  onehot:
+    image: correlations
+    depends_on: [ main ]
+    command: python onehot.py --folder results
+    volumes:
+      - type: bind
+        source: ${FOLDER:-results}
+        target: /project/results
+
   overfitting:
     image: correlations
     depends_on: [ main ]

@@ -1,15 +1,29 @@
 import os
-from typing import Iterable
+from typing import Iterable, List
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import seaborn as sns
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from scipy.stats import pearsonr
 
+from items.algorithms.moving import DeclarativeMaster
 from items.datasets import Dataset
 from items.indicators import DoubleKernelHGR, KernelBasedGeDI
-from items.algorithms.moving import DeclarativeMaster
+
+PALETTE: List[str] = [
+    '#377eb8',
+    '#ff7f00',
+    '#4daf4a',
+    '#f781bf',
+    '#a65628',
+    '#984ea3',
+    '#999999',
+    '#e41a1c',
+    '#dede00'
+]
+"""The color palette for plotting data."""
 
 
 class FigureExperiment:
@@ -180,10 +194,12 @@ class FigureExperiment:
             # if no kernel use original targets, otherwise compute processed targets using the master
             if degree == 'none':
                 title = 'No Constraint'
-                w = b
+                y_label = '$y$'
+                v = b
             else:
                 title = '$\\operatorname{GeDI}(x, y; V^' + str(degree) + ') = 0$'
-                w = DeclarativeMaster(
+                y_label = '$\hat{y}$'
+                v = DeclarativeMaster(
                     classification=False,
                     indicator=KernelBasedGeDI(degree=degree, fine_grained=not coarse),
                     excluded=0,
@@ -194,14 +210,14 @@ class FigureExperiment:
             ax = fig.gca()
             sns.regplot(
                 x=a,
-                y=w,
+                y=v,
                 color='red',
                 line_kws=dict(linewidth=5),
                 scatter_kws=dict(color='black', edgecolor='black', s=10, alpha=0.6),
                 ax=ax
             )
-            ax.set_xlabel('a')
-            ax.set_ylabel('b', rotation=0, labelpad=15)
+            ax.set_xlabel('$z$')
+            ax.set_ylabel(y_label, rotation=0, labelpad=15)
             ax.set_ylim((-5.5, 17.5))
             ax.set_xticks(np.pi * np.array([-1, -0.5, 0, 0.5, 1]), labels=['-π', '-π/2', '0', 'π/2', 'π'])
             ax.set_yticks([-4, 0, 4, 8, 12, 16])
@@ -212,4 +228,48 @@ class FigureExperiment:
                 fig.savefig(file, bbox_inches='tight')
             if plot:
                 ax.set_title(title)
+                fig.show()
+
+    @staticmethod
+    def onehot(folder: str = 'results',
+               extensions: Iterable[str] = ('png',),
+               plot: bool = False):
+        # build data and compute coefficients
+        seeds, samples = 30, 1000
+        weights = {v: w for v, w in enumerate([0, -1, 1, 5])}
+        indices = {'-'.join([str(i + 1) for i in idx]): idx for idx in [[0, 1, 2, 3], [1, 2, 3], [0, 1, 2]]}
+        coefficients = {title: [
+            {'hgr': 0.0, **{f'$\\widetilde{{\\alpha}}_{v + 1}$': 0.0 for v in weights}} for _ in range(seeds)
+        ] for title in indices}
+        for s in range(seeds):
+            rng = np.random.default_rng(s)
+            a = rng.choice(list(weights), replace=True, size=samples).astype(float)
+            b = np.sum([w * (a == v) for v, w in weights.items()], axis=0) + rng.normal(scale=1, size=a.shape)
+            onehot = np.stack([a == v for v in weights]).transpose().astype(float)
+            onehot = onehot - onehot.mean(axis=0)
+            for title, idx in indices.items():
+                kernel = onehot[:, idx]
+                alpha, _, _, _ = np.linalg.lstsq(kernel, (b - b.mean()) / b.std(ddof=0), rcond=None)
+                for i, c in zip(idx, alpha):
+                    coefficients[title][s][f'$\\widetilde{{\\alpha}}_{i + 1}$'] = float(c)
+                coefficients[title][s]['hgr'] = pearsonr(kernel @ alpha, b)[0]
+        # plot results
+        sns.set(context='poster', style='whitegrid', font_scale=2.2)
+        figs = {title: plt.figure(figsize=(9, 9), tight_layout=True) for title in coefficients}
+        for title, values in coefficients.items():
+            ax = figs[title].gca()
+            data = pd.DataFrame(values)
+            sns.barplot(data=data.drop(columns='hgr'), errorbar='sd', edgecolor='black', palette=PALETTE[:4], ax=ax)
+            ax.set_title(f"$\\rho$: {data['hgr'].mean():.4f}", pad=15)
+        # set common bounds, then store and plot if necessary
+        y_min = min([fig.gca().get_ylim()[0] for fig in figs.values()])
+        y_max = max([fig.gca().get_ylim()[1] for fig in figs.values()])
+        for title, fig in figs.items():
+            fig.gca().set_ylim(y_min, y_max)
+            for extension in extensions:
+                os.makedirs(folder, exist_ok=True)
+                file = os.path.join(folder, f'onehot_{title}.{extension}')
+                fig.savefig(file, bbox_inches='tight')
+            if plot:
+                fig.suptitle(f'One-Hot Columns {title}')
                 fig.show()

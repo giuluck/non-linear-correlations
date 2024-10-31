@@ -100,8 +100,8 @@ class DeclarativeMaster(Master):
                        sample_weight: Optional[np.ndarray] = None) -> np.ndarray:
         # due to numerical tolerances, targets may be returned as <z + eps>, therefore we round binary targets in order
         # to remove these numerical errors and make sure that they will not cause problems to the learners
-        w = super(DeclarativeMaster, self).adjust_targets(x, y, p)
-        return w.round() if self.classification else w
+        v = super(DeclarativeMaster, self).adjust_targets(x, y, p)
+        return v.round() if self.classification else v
 
 
 @dataclass(frozen=True)
