@@ -20,7 +20,7 @@ parser.add_argument(
     help='the path where to search and store the results and the exports'
 )
 parser.add_argument(
-    '-e',
+    '-x',
     '--experiments',
     type=str,
     nargs='+',
@@ -29,11 +29,11 @@ parser.add_argument(
     help='the name of the experiment (or list of such) to clear'
 )
 parser.add_argument(
-    '-e'
+    '-e',
     '--export',
     type=str,
     nargs='*',
-    default=[],
+    default=['json'],
     choices=['csv', 'json'],
     help='stores an export file with the signatures of the experiments'
 )
