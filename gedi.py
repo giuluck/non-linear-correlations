@@ -1,12 +1,10 @@
 import argparse
 import logging
 import os
-import re
 import warnings
 
 from experiments import LearningExperiment
 from items.datasets import Communities, Adult, Census
-from items.indicators import DoubleKernelHGR, SingleKernelHGR, AdversarialHGR, DensityHGR
 
 # noinspection DuplicatedCode
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'

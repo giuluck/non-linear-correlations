@@ -415,15 +415,15 @@ class CorrelationExperiment(Experiment):
             indicator=indicators,
             seed=0
         )
-        sns.set(context='poster', style='white', font_scale=1.4)
+        sns.set(context='poster', style='white', font_scale=1.3)
         for key, dataset in datasets.items():
             indicator_experiments = {indicator: experiments[(key, indicator)] for indicator in indicators.keys()}
             # build and plot results
             a = dataset.excluded(backend='numpy')
             b = dataset.target(backend='numpy')
             fig, axes = plt.subplot_mosaic(
-                mosaic=[['data', 'g(b)'], ['f(a)', 'hgr']],
-                figsize=(16, 16),
+                mosaic=[['f(a)', 'hgr', 'g(b)']],
+                figsize=(21, 7),
                 tight_layout=True
             )
             fa, gb = {'index': a}, {'index': b}
@@ -460,9 +460,8 @@ class CorrelationExperiment(Experiment):
                 ax.set_yticks([])
                 ax.legend(loc='best')
             # plot data
-            ax = axes['data']
-            sns.scatterplot(x=a, y=b, alpha=0.4, color='black', edgecolor='black', s=30, ax=ax)
-            ax.set_title('Data', pad=10)
+            ax = inset_axes(axes['hgr'], width='30%', height='30%', loc='upper right')
+            sns.scatterplot(x=a, y=b, alpha=0.4, color='black', edgecolor='black', s=5, ax=ax)
             ax.set_xlabel('a')
             ax.set_ylabel('b', rotation=0, labelpad=20)
             ax.set_xticks([])

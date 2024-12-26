@@ -2,6 +2,23 @@
 
 This repository contains the code to reproduce the experiments of my PhD Dissertation "_Detection and Enforcement of Non-Linear Correlations for Fair and Robust Machine Learning Applications_".
 
+Part of this code was taken and reworked from two papers, one published at the Fortieth International Conference on Machine Learning (_ICML, 2023_) and one currently under review at a prestigious conference on Artificial Intelligence.
+In order to cite the published ICML paper "_Generalized Disparate Impact for Configurable Fairness Solutions in ML_" please use the following entry:
+```
+@inproceedings{giuliani2023generalized,
+  title        = {Generalized Disparate Impact for Configurable Fairness Solutions in {ML}},
+  author       = {Giuliani, Luca and Misino, Eleonora and Lombardi, Michele},
+  year         = 2023,
+  month        = jul,
+  booktitle    = {Proceedings of the 40th International Conference on Machine Learning},
+  publisher    = {PMLR},
+  editor       = {Krause, Andreas and Brunskill, Emma and Cho, Kyunghyun and Engelhardt, Barbara and Sabato, Sivan and Scarlett, Jonathan},
+  series       = {Proceedings of Machine Learning Research},
+  volume       = 202,
+  pages        = {11443--11458}
+}
+```
+
 ## Installation Setup
 
 There are two possible ways to run the scripts in this repository.

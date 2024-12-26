@@ -61,7 +61,7 @@ parser.add_argument(
     '--indicators',
     type=str,
     nargs='*',
-    default=['kb', 'sk', 'nn', 'kde', 'rdc'],
+    default=['kb', 'sk', 'nn', 'kde', 'rdc', 'prs'],
     help='the indicator used to compute the correlations'
 )
 parser.add_argument(

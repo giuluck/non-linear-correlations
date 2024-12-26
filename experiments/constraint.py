@@ -7,9 +7,9 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 
 from experiments.experiment import Experiment
+from items.algorithms import DIDI, DeclarativeMaster
 from items.datasets import Dataset
 from items.indicators import DeclarativeIndicator, KernelBasedGeDI, Indicator
-from items.algorithms import DIDI, DeclarativeMaster
 
 PALETTE: List[np.ndarray] = [0.3 + 0.7 * np.array(color) for color in sns.color_palette('tab10')]
 """The color palette for plotting data."""

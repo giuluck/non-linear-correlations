@@ -4,7 +4,7 @@ from typing import Dict, Any
 
 import numpy as np
 
-from items.datasets import Dataset, BenchmarkDataset
+from items.datasets import BenchmarkDataset
 from items.item import Item
 
 

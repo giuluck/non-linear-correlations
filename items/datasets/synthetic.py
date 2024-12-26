@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Callable
+from typing import Dict, Any, Callable
 
 import matplotlib.pyplot as plt
 import numpy as np
