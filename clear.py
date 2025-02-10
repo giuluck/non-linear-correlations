@@ -80,6 +80,6 @@ if args.pop('exports') is False:
     print()
     conditions = args.pop('conditions')
     for experiment in args.pop('experiments'):
-        print(f'{experiment.upper()} EXPERIMENT:', end='')
+        print(f'{experiment.upper()} EXPERIMENT:')
         EXPERIMENTS[experiment].clear(folder=folder, *conditions, **args)
         print()

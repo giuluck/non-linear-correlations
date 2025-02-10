@@ -1,6 +1,6 @@
 # Detection and Enforcement of Non-Linear Correlations for Fair and Robust Machine Learning Applications
 
-This repository contains the code to reproduce the experiments of my PhD Dissertation "_Detection and Enforcement of Non-Linear Correlations for Fair and Robust Machine Learning Applications_".
+This repository contains the code to reproduce the experiments of my PhD Dissertation "[Detection and Enforcement of Non-Linear Correlations for Fair and Robust Machine Learning Applications](dissertation.pdf)".
 
 Part of this code was taken and reworked from two papers, one published at the Fortieth International Conference on Machine Learning (_ICML, 2023_) and one currently under review at a prestigious conference on Artificial Intelligence.
 In order to cite the published ICML paper "_Generalized Disparate Impact for Configurable Fairness Solutions in ML_" please use the following entry:
@@ -112,7 +112,7 @@ Results are shown in _Figure 3.4_, and are very fast to obtain.
 #### GeDI
 
 This script trains different constrained machine learning models, imposing fairness constraints through GeDI in its different definitions.
-Results are shown in _Figure 4.6_ and _Table 4.3_, and require a few hours to be executed.
+Results are shown in _Figure 4.7_ and _Table 4.3_, and require a few hours to be executed.
 
 > Note: this script requires `Gurobi 11` to be manually installed in the local machine or in the Docker container.
 
@@ -155,6 +155,11 @@ Results are shown in _Figure 3.1_, and are very fast to obtain.
 
 This script computes the level of %DIDI using several binning strategies when GeDI is used to enforce fairness constraints directly on the data.
 Results are shown in _Figure 4.5_, and require a few minutes to be executed.
+
+#### Scalability
+
+This script tests the computational time required to compute HGR using different estimation algorithms on several synthetic datasets under various levels of noise and increasing sample size.
+Results are shown in _Figure 3.10_, and require a few hours to be executed.
 
 > Note: this script requires `Gurobi 11` to be manually installed in the local machine or in the Docker container.
 

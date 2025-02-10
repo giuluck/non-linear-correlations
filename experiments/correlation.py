@@ -150,10 +150,16 @@ class CorrelationExperiment(Experiment):
             seed=0
         )
         # build results
-        results = pd.DataFrame([
-            {'execution': exp.elapsed_time, 'Algorithm': indicator, 'dataset': dataset, 'seed': seed, 'size': size}
-            for ((dataset, seed, size), indicator), exp in tqdm(experiments.items(), desc='Storing Correlations')
-        ])
+        results = []
+        for ((dataset, seed, size), indicator), exp in experiments.items():
+            results.append({
+                'execution': exp.elapsed_time,
+                'Algorithm': indicator,
+                'dataset': dataset,
+                'seed': seed,
+                'size': size
+            })
+        results = pd.DataFrame(results)
         # plot results
         sns.set(context='poster', style='whitegrid', font_scale=1.7)
         rows = int(np.ceil(len(list(datasets)) / columns))
@@ -205,10 +211,15 @@ class CorrelationExperiment(Experiment):
             seed=list(seeds)
         )
         # build results
-        results = pd.DataFrame([
-            {'correlation': exp['correlation'], 'noise': noise, 'indicator': indicator, 'seed': seed}
-            for (noise, indicator, seed), exp in tqdm(experiments.items(), desc='Storing Correlations')
-        ])
+        results = []
+        for (noise, indicator, seed), exp in experiments.items():
+            results.append({
+                'correlation': exp['correlation'],
+                'noise': noise,
+                'indicator': indicator,
+                'seed': seed
+            })
+        results = pd.DataFrame(results)
         # plot results
         sns.set(context='poster', style='whitegrid', font_scale=2.2)
         for indicator in indicators:
@@ -280,15 +291,15 @@ class CorrelationExperiment(Experiment):
         )
         # build results
         results = []
-        for key, exp in tqdm(experiments.items(), desc='Storing Correlations'):
-            dataset, noise, seed = key[0]
+        for (key, indicator, algorithm_seed), exp in tqdm(experiments.items(), desc='Storing Correlations'):
+            dataset, noise, data_seed = key
             config = dict(
                 dataset=dataset,
                 equation=exp.dataset.equation,
                 noise=noise,
-                indicator=key[1],
-                data_seed=seed,
-                algorithm_seed=key[2]
+                indicator=indicator,
+                data_seed=data_seed,
+                algorithm_seed=algorithm_seed
             )
             if not test:
                 results.append({'correlation': exp['correlation'], 'execution': exp.elapsed_time, **config})
@@ -300,7 +311,7 @@ class CorrelationExperiment(Experiment):
                 test_results = exp['test']
                 to_update = False
                 for s in noise_seeds:
-                    if s == seed:
+                    if s == data_seed:
                         continue
                     hgr = test_results.get(s)
                     if hgr is None:
@@ -396,6 +407,117 @@ class CorrelationExperiment(Experiment):
         plt.close(fig)
 
     @staticmethod
+    def scalability(datasets: Iterable[str],
+                    indicators: Dict[str, Indicator],
+                    sizes: Iterable[int] = (11, 51, 101, 501, 1001, 5001, 10001, 50001, 100001),
+                    noises: Iterable[float] = (0.0, 1.0, 3.0),
+                    seeds: Iterable[int] = (0, 1, 2, 3, 4),
+                    save_time: int = 60,
+                    folder: str = 'results',
+                    extensions: Iterable[str] = ('png',),
+                    plot: bool = False):
+        # run experiments
+        experiments = CorrelationExperiment.execute(
+            folder=folder,
+            verbose=False,
+            save_time=save_time,
+            dataset={
+                (name, noise, seed, size): Synthetic(name=name, noise=noise, seed=seed, size=size)
+                for name in datasets for noise in noises for seed in seeds for size in sizes
+            },
+            indicator=indicators,
+            seed=0
+        )
+        # build results
+        results = []
+        for ((dataset, noise, seed, size), indicator), exp in experiments.items():
+            results.append({
+                'dataset': dataset,
+                'equation': exp.dataset.equation,
+                'noise': noise,
+                'indicator': indicator,
+                'seed': seed,
+                'size': size,
+                'correlation': exp['correlation'],
+                'execution': exp.elapsed_time
+            })
+        results = pd.DataFrame(results)
+        # plot results
+        sns.set(context='poster', style='whitegrid', font_scale=1.7)
+        figs = {}
+        xmax, ymax = 0.0, 0.0
+        xmin, ymin = float('inf'), float('inf')
+        columns = len(list(datasets))
+        handles, labels = [], []
+        for noise in noises:
+            fig, axes = plt.subplots(1, columns, sharex=True, sharey=True, figsize=(12 * columns, 9), tight_layout=True)
+            for ax, dataset in zip(axes, datasets):
+                group = results[np.logical_and(results['dataset'] == dataset, results['noise'] == noise)]
+                sns.lineplot(
+                    data=group,
+                    x='size',
+                    y='execution',
+                    hue='indicator',
+                    style='indicator',
+                    estimator='mean',
+                    errorbar=None,
+                    palette=PALETTE[1:len(indicators) + 1],
+                    linewidth=5,
+                    ax=ax
+                )
+                handles, labels = ax.get_legend_handles_labels()
+                ax.get_legend().remove()
+                ax.set_title(group['equation'].iloc[0], pad=15)
+                ax.set_xlabel(f'Size')
+                ax.set_ylabel('Execution Time (s)')
+                ax.set_xscale('log')
+                ax.set_yscale('log')
+                xmin = min(xmin, ax.get_xlim()[0])
+                xmax = max(xmax, ax.get_xlim()[1])
+                ymin = min(ymin, ax.get_ylim()[0])
+                ymax = max(ymax, ax.get_ylim()[1])
+                # plot the original data
+                sub_ax = inset_axes(ax, width='23%', height='40%', loc='upper left')
+                config = dict(linewidth=2) if noise == 0.0 else dict(alpha=0.2, s=5)
+                Synthetic(name=dataset, noise=noise).plot(ax=sub_ax, color='black', **config)
+                sub_ax.set_xticks([])
+                sub_ax.set_yticks([])
+            figs[noise] = fig
+        # store, print, and plot if necessary starting from the legend
+        legend_rows = np.ceil(len(indicators) / 6).astype(int)
+        legend_columns = np.ceil(len(indicators) / legend_rows).astype(int)
+        fig, ax = plt.subplots(1, 1)
+        ax.legend(handles=handles, labels=labels, loc='center', fontsize='large', ncols=legend_columns, frameon=False)
+        ax.axis('off')
+        for extension in extensions:
+            file = os.path.join(folder, f'scalability_legend.{extension}')
+            fig.savefig(file, bbox_inches='tight')
+        if plot:
+            fig.show()
+        plt.close(fig)
+        # obtain x-ticks and y-ticks from rounded log10 of bounds then use these values to build a log space
+        ticks = []
+        for bounds in [[xmin, xmax], [ymin, ymax]]:
+            lb, ub = np.log10(bounds)
+            lb = np.ceil(lb).astype(int)
+            ub = np.floor(ub).astype(int)
+            space = np.logspace(lb, ub, num=ub - lb + 1)
+            ticks.append(space)
+        # store, print, and plot if necessary all the figures
+        for noise, fig in figs.items():
+            for ax in fig.axes[:columns]:
+                ax.set_xticks(ticks[0])
+                ax.set_yticks(ticks[1])
+                ax.set_ylim((ymin, ymax))
+            for extension in extensions:
+                file = os.path.join(folder, f'scalability_{noise}.{extension}')
+                fig.savefig(file, bbox_inches='tight')
+            if plot:
+                fig.suptitle(f'Computational Times for Different Dataset Sizes')
+                fig.show()
+            plt.close(fig)
+
+    @staticmethod
     def copulas(datasets: Iterable[str],
                 indicators: Dict[str, CopulaIndicator],
                 noises: Iterable[float] = (1.0,),
@@ -458,7 +580,7 @@ class CorrelationExperiment(Experiment):
                 ax.set_ylabel(copula, rotation=0, labelpad=37)
                 ax.set_xticks([])
                 ax.set_yticks([])
-                ax.legend(loc='best')
+                ax.legend(loc='best', fontsize=20)
             # plot data
             ax = inset_axes(axes['hgr'], width='30%', height='30%', loc='upper right')
             sns.scatterplot(x=a, y=b, alpha=0.4, color='black', edgecolor='black', s=5, ax=ax)

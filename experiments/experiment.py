@@ -527,7 +527,7 @@ class Experiment:
         folders = {key: None for key in os.listdir(filepath) if os.path.isdir(os.path.join(filepath, key))}
         experiments = {**folders, **cls.load(folder=folder)}
         if verbose:
-            print(f"Retrieved {len(experiments)} experiments.")
+            print(f"Retrieved {len(experiments)} experiments.\n")
         # create a dictionary of output experiments, and a list of folders to be removed
         outputs = {}
         folders = []
@@ -544,7 +544,7 @@ class Experiment:
         # if not force ask for confirmation (if the answer is not 'y' or 'yes', abort)
         # otherwise print a message if necessary
         if not force:
-            msg = f"\nAre you sure you want to remove {len(experiments) - len(outputs)} experiments, "
+            msg = f"Are you sure you want to remove {len(experiments) - len(outputs)} experiments, "
             msg += f"leaving {len(outputs)} experiments left? (Y/N) "
             choice = input(msg)
             if choice.lower() not in ['y', 'yes']:

@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass, field
 from typing import Dict, Any, Callable
 
@@ -39,14 +40,14 @@ class Synthetic(Dataset):
         Function(name='circle', equation='$x^2 + y^2 = 1$', direction=0, f=lambda x: -x ** 2, g=lambda y: y ** 2),
         Function(
             name='relu',
-            equation='$y = \operatorname{max}(0, x)$',
+            equation='$y = \\operatorname{max}(0, x)$',
             direction=1,
             f=lambda x: np.maximum(x, 0),
             g=lambda y: y
         ),
         Function(
             name='sign',
-            equation='$y = \operatorname{sign}(x)$',
+            equation='$y = \\operatorname{sign}(x)$',
             direction=1,
             f=lambda x: np.sign(x),
             g=lambda y: y
@@ -54,7 +55,7 @@ class Synthetic(Dataset):
         # apply the function to the input vector rescaled by a factor of 10
         Function(
             name='tanh',
-            equation='$y = \operatorname{tanh}(x)$',
+            equation='$y = \\operatorname{tanh}(x)$',
             direction=1,
             f=lambda x: np.tanh(10 * x),
             g=lambda y: y
@@ -62,7 +63,7 @@ class Synthetic(Dataset):
         # apply the function to the input vector rescaled to [0, 2 * pi]
         Function(
             name='sin',
-            equation='$y = \operatorname{sin}(x)$',
+            equation='$y = \\operatorname{sin}(x)$',
             direction=1,
             f=lambda x: np.sin(np.pi * (x + 1)),
             g=lambda y: y
@@ -70,7 +71,7 @@ class Synthetic(Dataset):
         # apply the function to the input vector rescaled to [0, 2 * pi] and then squared
         Function(
             name='square_sin',
-            equation='$y = \operatorname{sin}(x^2)$',
+            equation='$y = \\operatorname{sin}(x^2)$',
             direction=1,
             f=lambda x: np.sin(np.square(np.pi * (x + 1))),
             g=lambda y: y
@@ -103,24 +104,25 @@ class Synthetic(Dataset):
 
     def _load(self) -> pd.DataFrame:
         rng = np.random.default_rng(seed=self.seed)
-        s = np.linspace(-1, 1, num=self.size, endpoint=True)
         # select the strategy depending on the direction of the dependency:
         #   - if the dependency is y = f(x), we add noise only on y
         #   - if the dependency is x = g(y), we add noise only on x
         #   - otherwise we adopt a custom strategy and add noise on both
         if self.direction == 1:
-            x = s
+            x = np.linspace(-1, 1, num=self.size, endpoint=True)
             y = self.f(x)
             y = y + rng.normal(loc=0.0, scale=self.noise * y.std(ddof=0), size=len(y))
         elif self.direction == -1:
-            y = s
+            y = np.linspace(-1, 1, num=self.size, endpoint=True)
             x = -self.g(y)
             x = x + rng.normal(loc=0.0, scale=self.noise * x.std(ddof=0), size=len(x))
         else:
             assert self.name == 'circle', f'Unexpected function "{self.name}"'
-            # duplicate the space and compute plus-or-minus sqrt(1 - x^2)
+            # half the space then duplicate it and compute plus-or-minus sqrt(1 - x^2)
+            size = np.ceil(self.size / 2).astype(int)
+            s = np.linspace(-1, 1, num=size, endpoint=True)
             x = np.concatenate((s, s[::-1]))
-            y = np.array([-1] * self.size + [1] * self.size) * np.sqrt(1 - x ** 2)
+            y = np.array([-1] * size + [1] * size) * np.sqrt(1 - x ** 2)
             x = x + rng.normal(loc=0.0, scale=self.noise * x.std(ddof=0), size=len(x))
             y = y + rng.normal(loc=0.0, scale=self.noise * y.std(ddof=0), size=len(y))
         # return the data

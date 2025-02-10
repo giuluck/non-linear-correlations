@@ -101,13 +101,13 @@ def hgr(X, Y, density, damping=1e-10):
 # noinspection PyPep8Naming,PyIncorrectDocstring,PyRedundantParentheses,DuplicatedCode
 def chi_2(X, Y, density, damping=0):
     """
-    The \chi^2 divergence between the joint distribution on (x,y) and the product of marginals. This is know to be the
+    The chi^2 divergence between the joint distribution on (x,y) and the product of marginals. This is know to be the
     square of an upper-bound on the Hirschfeld-Gebelein-Renyi maximum correlation coefficient. We compute it here on
     an empirical and discretized density estimated from the input data.
     :param X: A torch 1-D Tensor
     :param Y: A torch 1-D Tensor
     :param density: so far only kde is supported
-    :return: numerical value between 0 and \infty (0: independent)
+    :return: numerical value between 0 and infty (0: independent)
     """
     h2d = _joint_2(X, Y, density, damping=damping)
     marginal_x = h2d.sum(dim=1).unsqueeze(1)
@@ -162,7 +162,7 @@ def hgr_cond(X, Y, Z, density):
 # noinspection PyPep8Naming,PyRedundantParentheses,DuplicatedCode
 def chi_2_cond(X, Y, Z, density):
     """
-    An estimator of the function z -> chi^2(x|z, y|z) where \chi^2 is the \chi^2 divergence between the joint
+    An estimator of the function z -> chi^2(x|z, y|z) where chi^2 is the chi^2 divergence between the joint
     distribution on (x,y) and the product of marginals. This is know to be the square of an upper-bound on the
     Hirschfeld-Gebelein-Renyi maximum correlation coefficient. We compute it here on an empirical and discretized
     density estimated from the input data.

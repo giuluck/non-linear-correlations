@@ -7,6 +7,7 @@ from items.datasets import Synthetic
 from items.indicators import DoubleKernelHGR, DensityHGR, ChiSquare, RandomizedDependenceCoefficient, SingleKernelHGR, \
     AdversarialHGR
 
+# noinspection DuplicatedCode
 log = logging.getLogger("lightning_fabric")
 log.propagate = False
 log.setLevel(logging.ERROR)

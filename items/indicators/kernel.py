@@ -420,18 +420,18 @@ class KernelBasedGeDI(KernelBasedIndicator, DeclarativeIndicator):
         return dict(correlation=float(gedi), alpha=[float(a) for a in alpha])
 
     def regularizer(self, a: torch.Tensor, b: torch.Tensor, threshold: float, kwargs: Dict[str, Any]) -> torch.Tensor:
-        # use the least-square operator to compute the \tilde{alpha} vector
+        # use the least-square operator to compute the tilde{alpha} vector
         f = self.kernel(v=a, degree=self.degree, use_torch=True)
         alpha, _, _, _ = torch.linalg.lstsq(f, b - b.mean(), driver='gelsd')
         if self.fine_grained:
             # in the fine-grained constraint, we want a regularizer:
-            #    [ max{ 0, | \tilde{alpha}_1 | - threshold }, | \tilde{alpha}_2 |, ..., | \tilde{alpha}_h | ]
+            #    [ max{ 0, | tilde{alpha}_1 | - threshold }, | tilde{alpha}_2 |, ..., | tilde{alpha}_h | ]
             alpha = torch.abs(alpha)
             thresholds = torch.tensor([threshold] + [0] * (len(alpha) - 1))
             return torch.maximum(torch.zeros_like(alpha), alpha - thresholds)
         else:
             # in the coarse-grained constraints, we simply impose a standard regularizer on the GeDI value, which is
-            # computed as std(P_a^h @ \tilde{alpha}) / std(a)
+            # computed as std(P_a^h @ tilde{alpha}) / std(a)
             correlation = torch.std(f @ alpha, correction=0) / a.std(correction=0)
             return torch.maximum(torch.zeros(1), correlation - threshold)
 
@@ -439,7 +439,7 @@ class KernelBasedGeDI(KernelBasedIndicator, DeclarativeIndicator):
         var_a = a.var(ddof=0)
         if self.fine_grained:
             cov_ab = backend.mean(a * b) - a.mean() * backend.mean(b)
-            # impose the fine-grained zero constraints on \alpha_i, for each i in {2, ..., h}, i.e.:
+            # impose the fine-grained zero constraints on alpha_i, for each i in {2, ..., h}, i.e.:
             #    cov(a^d, a) * cov(a, b) == var(a) * cov(a^d, v)
             for d in np.arange(1, self.degree) + 1:
                 ad = a ** d

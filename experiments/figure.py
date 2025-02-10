@@ -198,7 +198,7 @@ class FigureExperiment:
                 v = b
             else:
                 title = '$\\operatorname{GeDI}(x, y; V^' + str(degree) + ') = 0$'
-                y_label = '$\hat{y}$'
+                y_label = '$\\hat{y}$'
                 v = DeclarativeMaster(
                     classification=False,
                     indicator=KernelBasedGeDI(degree=degree, fine_grained=not coarse),

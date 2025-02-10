@@ -552,7 +552,7 @@ class LearningExperiment(Experiment):
             output = [
                 '\\begin{tabular}{l|cc|cc|cc|c}',
                 '\\toprule',
-                '\multicolumn{1}{c|}{Algorithm} & \\multicolumn{2}{c|}{Score ($\\times 10^2$)} & \\multicolumn{2}{c|}{'
+                '\\multicolumn{1}{c|}{Algorithm} & \\multicolumn{2}{c|}{Score ($\\times 10^2$)} & \\multicolumn{2}{c|}{'
                 '$\\text{GeDI}_z (\\times 10^3)$} & \\multicolumn{2}{c|}{$\\text{DIDI}_s (\\times 10^2)$} & '
                 'Time (s) \\\\',
                 ' & train & val & train & val & train & val & \\\\',

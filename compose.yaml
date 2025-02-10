@@ -172,3 +172,12 @@ services:
       - type: bind
         source: ${FOLDER:-results}
         target: /project/results
+
+  scalability:
+    image: correlations
+    depends_on: [ main ]
+    command: python scalability.py --folder results
+    volumes:
+      - type: bind
+        source: ${FOLDER:-results}
+        target: /project/results
