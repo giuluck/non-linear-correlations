@@ -2,7 +2,7 @@
 
 This repository contains the code to reproduce the experiments of my PhD Dissertation "[Detection and Enforcement of Non-Linear Correlations for Fair and Robust Machine Learning Applications](dissertation.pdf)".
 
-Part of this code was taken and reworked from two papers, one published at the Fortieth International Conference on Machine Learning (_ICML, 2023_) and one currently under review at a prestigious conference on Artificial Intelligence.
+Part of this code was taken and reworked from two papers, one published at the Fortieth International Conference on Machine Learning (_ICML, 2023_) and one currently available on ArXiv as a pre-print.
 In order to cite the published ICML paper "_Generalized Disparate Impact for Configurable Fairness Solutions in ML_" please use the following entry:
 ```
 @inproceedings{giuliani2023generalized,
@@ -16,6 +16,15 @@ In order to cite the published ICML paper "_Generalized Disparate Impact for Con
   series       = {Proceedings of Machine Learning Research},
   volume       = 202,
   pages        = {11443--11458}
+}
+```
+Instead, to cite the ArXiv pre-print:
+```
+@article{giuliani2025robust,
+  title={Robust Non-Linear Correlations via Polynomial Regression},
+  author={Giuliani, Luca and Lombardi, Michele},
+  journal={arXiv preprint arXiv:2509.09380},
+  year={2025}
 }
 ```
 
