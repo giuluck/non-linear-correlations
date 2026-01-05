@@ -21,10 +21,10 @@ In order to cite the published ICML paper "_Generalized Disparate Impact for Con
 Instead, to cite the ArXiv pre-print:
 ```
 @article{giuliani2025robust,
-  title={Robust Non-Linear Correlations via Polynomial Regression},
-  author={Giuliani, Luca and Lombardi, Michele},
-  journal={arXiv preprint arXiv:2509.09380},
-  year={2025}
+  title        = {Robust Non-Linear Correlations via Polynomial Regression},
+  author       = {Giuliani, Luca and Lombardi, Michele},
+  journal      = {arXiv preprint arXiv:2509.09380},
+  year         = {2025}
 }
 ```
 
